@@ -144,9 +144,7 @@ details summary{cursor:pointer;font-weight:600}
 
   <div data-pane="csv" hidden class="grid" style="align-items:end">
     <label class="f">Electricity CSV <input type="file" id="csvFile" accept=".csv,text/csv"><small>Octopus dashboard export works as-is. Any file with a start time and kWh column works too.</small></label>
-    <label class="f">Your current electricity tariff <select id="csvCurrent"></select></label>
     <label class="f">Gas CSV (optional) <input type="file" id="gasFile" accept=".csv,text/csv"><small>Readings in kWh or m³</small></label>
-    <label class="f">Your current gas tariff <select id="csvCurrentGas"></select></label>
   </div>
 
   <div data-pane="sample" hidden class="row">
@@ -171,6 +169,8 @@ details summary{cursor:pointer;font-weight:600}
 <section class="panel" id="assumePanel">
   <div class="sec-head"><h2>Assumptions</h2><span class="eyebrow">Changes recalculate instantly</span></div>
   <div class="grid">
+    <label class="f">Compare electricity against <select id="csvCurrent"></select><small id="cmpNote">The tariff you'll be on if you do nothing. Add a new offer below to pick it here.</small></label>
+    <label class="f">Compare gas against <select id="csvCurrentGas"></select></label>
     <label class="f">Region <select id="region"></select><small>Set automatically when you fetch from Octopus</small></label>
     <label class="f">Price basis
       <select id="basis"><option value="today" selected>Today's rates applied to my usage</option><option value="hist">Rates at the time I used it</option></select>
@@ -211,7 +211,7 @@ details summary{cursor:pointer;font-weight:600}
         <th>Tariff</th>
         <th class="n">As you use it now<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
         <th class="n">If you shift<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
-        <th class="n">vs your tariff<span class="sub" style="text-transform:none;letter-spacing:0">shifted, per year</span></th>
+        <th class="n">vs comparison<span class="sub" style="text-transform:none;letter-spacing:0">shifted, per year</span></th>
         <th class="n">Avg price<span class="sub" style="text-transform:none;letter-spacing:0">shifted, p/kWh</span></th>
         <th class="n">Standing<span class="sub" style="text-transform:none;letter-spacing:0">p/day</span></th>
       </tr></thead>
@@ -242,7 +242,7 @@ details summary{cursor:pointer;font-weight:600}
       <thead><tr>
         <th>Tariff</th>
         <th class="n">Per year</th>
-        <th class="n">vs your tariff<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
+        <th class="n">vs comparison<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
         <th class="n">Unit rate<span class="sub" style="text-transform:none;letter-spacing:0">avg p/kWh</span></th>
         <th class="n">Standing<span class="sub" style="text-transform:none;letter-spacing:0">p/day</span></th>
       </tr></thead>
@@ -692,9 +692,10 @@ function calc(){
 }
 
 /* ---------- Rendering ---------- */
-function currentId(fuel){
-  if(state.source==="octopus") return fuel==="gas"?state.currentGasProduct:state.currentProduct;
-  return $(fuel==="gas"?"#csvCurrentGas":"#csvCurrent").value;
+function currentId(fuel){ return $(fuel==="gas"?"#csvCurrentGas":"#csvCurrent").value; }
+function accountChip(r, fuel){
+  const acc = state.source==="octopus" ? (fuel==="gas"?state.currentGasProduct:state.currentProduct) : null;
+  return acc && r.t.id===acc ? '<span class="chip">On your account now</span>' : "";
 }
 function currentResult(){ const id=currentId("elec"); return state.results.find(r=>r.t.id===id) || null; }
 function currentGasResult(){ const id=currentId("gas"); return state.gasResults.find(r=>r.t.id===id) || null; }
@@ -726,7 +727,8 @@ function render(){
   $("#resultsLabel").textContent=$("#basis").value==="today"?"Today's rates":"Rates at the time";
   const rows=state.results.map(r=>{
     const tags=[];
-    if(cur&&r===cur) tags.push('<span class="chip cur">Your tariff</span>');
+    if(cur&&r===cur) tags.push('<span class="chip cur">Comparing against</span>');
+    tags.push(accountChip(r,"elec"));
     if(r===best) tags.push('<span class="chip best">Cheapest if you shift</span>');
     for(const g of r.t.tags||[]) tags.push(`<span class="chip">${esc(g)}</span>`);
     if(r.t.exitFee>0) tags.push(`<span class="chip warn">£${(r.t.exitFee/100).toFixed(0)} exit fee</span>`);
@@ -765,7 +767,8 @@ function renderGas(){
   ].map(([v,l])=>`<div class="tile"><span class="v">${v}</span><span class="l">${l}</span></div>`).join("");
   $("#gasBody").innerHTML=rs.map(r=>{
     const tags=[];
-    if(cur&&r===cur) tags.push('<span class="chip cur">Your tariff</span>');
+    if(cur&&r===cur) tags.push('<span class="chip cur">Comparing against</span>');
+    tags.push(accountChip(r,"gas"));
     if(r===best) tags.push('<span class="chip best">Cheapest</span>');
     for(const t of r.t.tags||[]) tags.push(`<span class="chip">${esc(t)}</span>`);
     if(r.t.exitFee>0) tags.push(`<span class="chip warn">£${(r.t.exitFee/100).toFixed(0)} exit fee</span>`);
@@ -788,13 +791,13 @@ function renderBill(){
   const tiles=[];
   const curTotal = ce ? ce.yearUsed + (hasGas?(cg?cg.year:NaN):0) : NaN;
   const bestTotal = be.yearSh + (hasGas&&bg?bg.year:0);
-  if(isFinite(curTotal)) tiles.push([gbp(curTotal),"Now: your tariffs, as you use energy today"]);
+  if(isFinite(curTotal)) tiles.push([gbp(curTotal),`Compared with: ${esc(ce.t.name)}${hasGas&&cg?" + "+esc(cg.t.name)+" gas":""}, as you use energy today`]);
   tiles.push([gbp(bestTotal),`Best: ${esc(be.t.name)}${hasGas&&bg?" + "+esc(bg.t.name)+" gas":""}, with shifting`]);
   if(isFinite(curTotal)){ const d=curTotal-bestTotal; tiles.push([`<span class="${d>0?"save":""}">${d>0?gbp(d):"£0"}</span>`, d>0?"Possible saving per year":"You're already on the cheapest option"]); }
-  if(ce&&ce.yearUsed-ce.yearSh>1) tiles.push([gbp(ce.yearUsed-ce.yearSh),"Of that, from shifting more on your current tariff"]);
+  if(ce&&ce.yearUsed-ce.yearSh>1) tiles.push([gbp(ce.yearUsed-ce.yearSh),"Of that, from shifting more on "+esc(ce.t.name)]);
   $("#billTiles").innerHTML=tiles.map(([v,l])=>`<div class="tile"><span class="v">${v}</span><span class="l">${l}</span></div>`).join("");
   const missing=[]; if(!ce) missing.push("electricity"); if(hasGas&&!cg) missing.push("gas");
-  $("#billNote").textContent = missing.length ? `Choose your current ${missing.join(" and ")} tariff above to see your saving.` : "Electricity and gas tariffs are chosen separately, so you can mix them. Exit fees aren't included.";
+  $("#billNote").textContent = missing.length ? `Choose the ${missing.join(" and ")} tariff to compare against (under Assumptions) to see your saving.` : "Electricity and gas tariffs are chosen separately, so you can mix them. Exit fees aren't included.";
 }
 
 function tipFor(container){
@@ -840,8 +843,8 @@ function drawMonths(){
   const key=state.scen==="shifted"?"sh":"used";
   const series=[{r:sel,color:"var(--offpeak)"}];
   if(cur&&cur!==sel) series.unshift({r:cur,color:"var(--peak)"});
-  $("#detailTitle").textContent = cur&&cur!==sel ? `${sel.t.name} vs your tariff` : `${sel.t.name}, month by month`;
-  $("#monthLegend").innerHTML=series.map(x=>`<span><i style="background:${x.color}"></i>${esc(x.r.t.name)}${x.r===cur?" (yours)":""}</span>`).join("");
+  $("#detailTitle").textContent = cur&&cur!==sel ? `${sel.t.name} vs ${cur.t.name}` : `${sel.t.name}, month by month`;
+  $("#monthLegend").innerHTML=series.map(x=>`<span><i style="background:${x.color}"></i>${esc(x.r.t.name)}${x.r===cur?" (comparison)":""}</span>`).join("");
   const months=sel[key].months.map(m=>m[0]);
   const vals=series.map(x=>new Map(x.r[key].months));
   const W=720,H=250,L=48,R=8,T=12,B=28,pw=W-L-R,ph=H-T-B;
@@ -915,9 +918,12 @@ $("#addCustom").addEventListener("click",()=>{
 /* ---------- Wiring ---------- */
 function fillCurrentSelect(){
   for(const [id,list,def] of [["#csvCurrent",[...state.tariffs,...customAsTariffs("elec")],"INTELLI-VAR-24-10-29"],["#csvCurrentGas",[...state.gasTariffs,...customAsTariffs("gas")],"VAR-22-11-01"]]){
-    const sel=$(id), prev=sel.value||def;
-    sel.innerHTML='<option value="">None</option>'+list.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
-    if(list.some(t=>t.id===prev)) sel.value=prev;
+    const sel=$(id), fuel=id==="#csvCurrentGas"?"gas":"elec";
+    const saved=store.get("cmp_"+fuel), acc=state.source==="octopus"?(fuel==="gas"?state.currentGasProduct:state.currentProduct):null;
+    sel.innerHTML='<option value="">None</option>'+list.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}${t.source==="custom"?" (entered by you)":""}</option>`).join("");
+    const pick=[saved,acc,sel.dataset.last,def].find(v=>v&&list.some(t=>t.id===v));
+    if(pick) sel.value=pick;
+    sel.dataset.last=sel.value;
   }
 }
 
@@ -943,7 +949,7 @@ $("#gasFile").addEventListener("change",async e=>{
   try{ const rows=parseCSV(await f.text()); if(!rows.length) throw new Error("No gas readings found in that file."); setGas(rows,rows.unit); setStatus(`Read ${rows.length.toLocaleString()} gas readings from ${f.name}.`); if(state.slots.length) await run(); }
   catch(err){ setStatus(err.message,true); }
 });
-$("#csvCurrentGas").addEventListener("change",()=>calc());
+$("#csvCurrentGas").addEventListener("change",e=>{ store.set("cmp_gas",e.target.value); e.target.dataset.last=e.target.value; calc(); });
 for(const id of ["gasUnit","gasCv"]) $("#"+id).addEventListener("change",()=>{ convertGas(); calc(); });
 for(const id of ["hasEv","hasHp","hasStorage","hasSolar","showAll"]) $("#"+id).addEventListener("change",()=>calc());
 $("#csvFile").addEventListener("change",async e=>{
@@ -951,7 +957,7 @@ $("#csvFile").addEventListener("change",async e=>{
   try{ state.currentProduct=null; state.currentGasProduct=null; if(state.source==="sample") state.gas=null; setSlots(parseCSV(await f.text()),"csv"); setStatus(`Read ${state.slots.length.toLocaleString()} half-hours from ${f.name}.`); await run(); }
   catch(err){ setStatus(err.message,true); }
 });
-$("#csvCurrent").addEventListener("change",()=>calc());
+$("#csvCurrent").addEventListener("change",e=>{ store.set("cmp_elec",e.target.value); e.target.dataset.last=e.target.value; state.selected=null; calc(); });
 $("#region").addEventListener("change",async()=>{ state.region=$("#region").value; if(state.slots.length) await run(); });
 for(const id of ["basis","evKw","chargerKw","plugFrom","plugTo","flexPct"]) $("#"+id).addEventListener("change",()=>calc());
 
