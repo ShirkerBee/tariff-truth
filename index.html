@@ -172,6 +172,7 @@ details summary{cursor:pointer;font-weight:600}
     <label class="f">Compare electricity against <select id="csvCurrent"></select><small id="cmpNote">The tariff you'll be on if you do nothing. Add a new offer below to pick it here.</small></label>
     <label class="f">Compare gas against <select id="csvCurrentGas"></select></label>
     <label class="f">Region <select id="region"></select><small>Set automatically when you fetch from Octopus</small></label>
+    <label class="f">Or find region by postcode <span class="row" style="flex-wrap:nowrap;gap:6px"><input id="postcode" placeholder="e.g. EX4 or EX4 3AB" autocomplete="postal-code"><button type="button" class="btn ghost small" id="findRegion">Find</button></span><small id="postcodeNote">Only the first half is sent unless it's needed</small></label>
     <label class="f">Price basis
       <select id="basis"><option value="today" selected>Today's rates applied to my usage</option><option value="hist">Rates at the time I used it</option></select>
       <small>Agile always uses the real half-hourly prices for each date</small></label>
@@ -192,6 +193,13 @@ details summary{cursor:pointer;font-weight:600}
     <label class="check"><input type="checkbox" id="hasStorage"> Storage heaters</label>
     <label class="check"><input type="checkbox" id="hasSolar"> Solar and a battery</label>
     <label class="check"><input type="checkbox" id="showAll"> Show tariffs I can't get</label>
+  </div>
+  <div class="row" style="gap:18px">
+    <span class="eyebrow">Suppliers</span>
+    <label class="check"><input type="checkbox" id="sup_octopus" checked> Octopus</label>
+    <label class="check"><input type="checkbox" id="sup_edf" checked> EDF</label>
+    <label class="check"><input type="checkbox" id="sup_eon" checked> E.ON Next &amp; Sainsbury's</label>
+    <label class="check"><input type="checkbox" id="sup_custom" checked> Tariffs you've entered</label>
   </div>
 </section>
 
@@ -254,8 +262,10 @@ details summary{cursor:pointer;font-weight:600}
 
 <!-- 6. CUSTOM -->
 <section class="panel" id="customPanel">
-  <div class="sec-head"><h2>Other suppliers' tariffs</h2><button class="btn ghost small" id="addCustom">Add a tariff</button></div>
-  <p class="note">Only Octopus publishes its prices through an API. For EDF, British Gas, OVO, E.ON Next and others, copy the standing charge, rates and times from the supplier's tariff page (inc. VAT, for your region). Times are UK clock time. Saved in this browser.</p>
+  <div class="sec-head"><h2>Tariffs you enter</h2><button class="btn ghost small" id="addCustom">Add a tariff</button></div>
+  <p class="note">Octopus, EDF, E.ON Next and Sainsbury's prices are fetched automatically. For anyone else (British Gas, OVO, Scottish Power and others), or an offer sent only to you, copy the standing charge, rates and times from the supplier (inc. VAT, for your region). Times are UK clock time. Saved in this browser.</p>
+  <div class="row" style="gap:6px"><span class="eyebrow" style="margin-right:6px">Quick add EV tariffs</span><span id="templates" class="row" style="gap:6px"></span></div>
+  <p class="note" style="font-size:12px;color:var(--ink-3)">Quick-add prices are for the Eastern region, from <a href="https://www.electrifying.com/blog/knowledge-hub/best-ev-electricity-tariffs-the-top-energy-tariffs-for-your-electric-car" target="_blank" rel="noopener">Electrifying.com's EV tariff list</a> (2 Oct 2026). Check the supplier's prices for your region and update them.</p>
   <div id="customList" style="display:grid;gap:12px"></div>
 </section>
 
@@ -269,6 +279,8 @@ details summary{cursor:pointer;font-weight:600}
       <li>Intelligent Octopus Go also bills extra smart-charging slots outside 23:30–05:30 at the cheap rate. Octopus's consumption data doesn't show which slots those were, so the "as used" figure for Intelligent Go can be slightly high.</li>
       <li>Gas is priced the same way, per half-hour or per day depending on what your meter sends. There's no shifting for gas. Readings in m³ are converted to kWh as m³ × 1.02264 × calorific value ÷ 3.6, the formula suppliers use on bills.</li>
       <li><b>Your yearly bill</b> adds the cheapest electricity tariff you can get (if you shift) to the cheapest gas tariff. Tariffs that need equipment you haven't ticked are left out.</li>
+      <li>Octopus, EDF, E.ON Next and Sainsbury's Energy publish their tariffs through public APIs, so their prices for your region are fetched live. Only the newest version of each tariff that's on sale today is shown. E.ON's EV and heat pump gas tariffs only come with their matching electricity tariff, and the best-bill figure respects that.</li>
+      <li>For tariffs where the cheap rate applies to <b>car charging only</b> (such as Scottish Power EV Optimise or OVO Charge Anytime), detected EV charging is billed at the car rate whenever it happens, and everything else at the standard rate. These suppliers usually only discount charging that their app schedules, often with a monthly cap, so treat these figures as a best case.</li>
       <li>Export payments aren't included yet.</li>
     </ul>
   </details>
@@ -279,6 +291,22 @@ details summary{cursor:pointer;font-weight:600}
 <script>
 "use strict";
 const API = "https://api.octopus.energy/v1";
+// Suppliers on the Kraken platform publish tariffs through the same public API.
+const SUPPLIERS = [
+  {key:"octopus", name:"Octopus", api:API, list:"/products/?brand=OCTOPUS_ENERGY&is_business=false&page_size=100"},
+  {key:"edf", name:"EDF", api:"https://api.edfgb-kraken.energy/v1", list:"/products/?is_business=false&page_size=100"},
+  {key:"eon", name:"E.ON Next", api:"https://api.eonnext-kraken.energy/v1", list:"/products/?is_business=false&page_size=100"},
+];
+// Tariffs from suppliers without an API. Eastern-region prices from Electrifying.com, 2 Oct 2026.
+const TEMPLATES = [
+  {name:"Scottish Power EV Saver", standing:"49.8", defaultRate:"26.6", bands:[{from:"00:00",to:"05:00",rate:"8.5"}]},
+  {name:"Scottish Power EV Optimise", applies:"car", standing:"49.8", defaultRate:"26.6", carRate:"8.0", bands:[]},
+  {name:"OVO Charge Anytime", applies:"car", standing:"51.8", defaultRate:"26.6", carRate:"", bands:[]},
+  {name:"British Gas EV Power", standing:"51.6", defaultRate:"37.7", bands:[{from:"00:00",to:"05:00",rate:"9.5"}]},
+  {name:"Good Energy EV", standing:"53.1", defaultRate:"34.7", bands:[{from:"00:00",to:"05:00",rate:"8.0"}]},
+  {name:"Fuse Energy Smart EV", standing:"43.8", defaultRate:"29.6", bands:[{from:"01:30",to:"08:30",rate:"17.18"}]},
+  {name:"So Energy EV Fixed", standing:"55.7", defaultRate:"42.88", bands:[{from:"00:00",to:"05:00",rate:"7.1"}]},
+];
 const REGIONS = {A:"Eastern England",B:"East Midlands",C:"London",D:"Merseyside & N Wales",E:"West Midlands",F:"North East England",G:"North West England",H:"Southern England",J:"South East England",K:"South Wales",L:"South West England",M:"Yorkshire",N:"South Scotland",P:"North Scotland"};
 // Products that are open to new customers but not always in the public listing.
 const EXTRA_PRODUCTS = ["INTELLI-VAR-24-10-29"];
@@ -493,30 +521,39 @@ function sampleGas(){
 function requirement(code){
   const c=code.toUpperCase();
   if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")) return "solar";
-  if(c.startsWith("INTELLI")||c.startsWith("IOG")||c.startsWith("GO-")) return "ev";
-  if(c.startsWith("COSY")) return "hp";
+  if(/^(INTELLI|IOG|GO-)|EDF_EV|GOELEC|PODPOINT|NEXT_DRIVE|SAINSBURYS_EV|ENGAGE_EV/.test(c)) return "ev";
+  if(/^COSY|HEAT_PUMP|PUMPED/.test(c)) return "hp";
   if(c.startsWith("SNUG")) return "storage";
   return null;
 }
+function supplierOn(t){ const el=$("#sup_"+(t.source==="custom"?"custom":t.supplier)); return el?el.checked:true; }
 function canGet(t){
+  if(!supplierOn(t)) return false;
   if(t.source==="custom"||$("#showAll").checked) return true;
   const r=requirement(t.code||""); if(!r) return true;
   return $({ev:"#hasEv",hp:"#hasHp",storage:"#hasStorage",solar:"#hasSolar"}[r]).checked;
 }
 function eligibility(code, name){
   const c=code.toUpperCase(), tags=[];
-  if(c.startsWith("AGILE")) tags.push("Price changes every half-hour");
+  if(c.startsWith("AGILE")||c.includes("DYNAMIC")) tags.push("Price changes every half-hour");
+  if(c.includes("PODPOINT")) tags.push("Needs a Pod Point charger");
+  else if(c.includes("NEXT_DRIVE_SMART")) tags.push("Needs compatible car (smart charging)");
+  else if(/EDF_EV|GOELEC|NEXT_DRIVE|SAINSBURYS_EV/.test(c)) tags.push("Needs an EV");
+  if(/HEAT_PUMP|PUMPED/.test(c)) tags.push("Needs a heat pump");
+  if(/EXCLUSIVE|LOYAL/.test(c)) tags.push("Check eligibility");
+  if(/TRACKER/.test(c)) tags.push("Price changes daily or quarterly");
   if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")) tags.push("Needs solar + battery");
   else if(c.startsWith("INTELLI")||c.startsWith("IOG")) tags.push("Needs compatible EV or charger");
   else if(c.startsWith("GO-")) tags.push("Needs EV or home battery");
   if(c.startsWith("COSY")) tags.push("Needs a heat pump");
   if(c.startsWith("SNUG")) tags.push("Needs storage heaters");
-  const fx=c.match(/FIX-(\d+)M/); if(fx) tags.push(`Fixed ${fx[1]} months`);
+  const fx=c.match(/FIX(?:ED)?[-_](?:[A-Z]+_)*(\d+)M/)||(/FIX/.test(c)&&c.match(/[-_](\d+)M[-_]/)); if(fx) tags.push(`Fixed ${fx[1]} months`);
+  else if(/SIMPLY_FIXED_2YR/.test(c)) tags.push("Fixed 2 years");
   return tags;
 }
 function sortRates(list){
   return list.filter(r=>!r.payment_method||r.payment_method==="DIRECT_DEBIT")
-    .map(r=>({from:Date.parse(r.valid_from),to:r.valid_to?Date.parse(r.valid_to):Infinity,v:r.value_inc_vat}))
+    .map(r=>({from:r.valid_from?Date.parse(r.valid_from):-Infinity,to:r.valid_to?Date.parse(r.valid_to):Infinity,v:r.value_inc_vat}))
     .sort((a,b)=>a.from-b.from);
 }
 function lookup(arr,t){
@@ -528,32 +565,64 @@ function lookup(arr,t){
   return null;
 }
 
+// Product family = code without its version, so only the newest version of each is used.
+function family(code){ return code.replace(/_V\d+(?:_\d+)?(?=(?:_HH)?$)/,""); }
+function version(code){ const m=code.match(/_V(\d+)(?:_(\d+))?(?:_HH)?$/); return m?(+m[1])*1000+(+(m[2]||0)):0; }
+
+async function supplierProducts(sup){
+  const list=await getAll(sup.api+sup.list);
+  let prods=list.filter(p=>p.direction==="IMPORT"&&!p.is_prepay&&!p.is_business
+    &&!/^ZERO-|PREPAY|TWIN/.test(p.code)&&!/TEST|DO_NOT_USE|EMPLOYEE/i.test(p.code+" "+p.display_name));
+  if(sup.key!=="octopus"){
+    const best=new Map();
+    for(const p of prods){ const f=family(p.code), b=best.get(f); if(!b||version(p.code)>version(b.code)) best.set(f,p); }
+    prods=[...best.values()];
+    const byName=new Map();   // same tariff listed under two codes: keep the shorter code
+    for(const p of prods){ const k=p.display_name+(/_GAS(_|$)/.test(p.code)?"|gas":""), b=byName.get(k); if(!b||p.code.length<b.code.length) byName.set(k,p); }
+    prods=[...byName.values()];
+  }
+  prods=prods.map(p=>({code:p.code,name:p.display_name,sup}));
+  if(sup.key==="octopus") for(const c of [...EXTRA_PRODUCTS, state.currentProduct, state.currentGasProduct]) if(c && !prods.some(p=>p.code===c)) prods.push({code:c,name:null,sup});
+  return prods;
+}
+
 async function loadTariffs(){
   const s=state.slots, region=state.region, gs=state.gas?state.gas.raw:[];
   const first=Math.min(s[0].t, gs.length?gs[0].t:Infinity);
   const from=new Date(first-2*864e5).toISOString(), to=new Date(Math.max(s[s.length-1].t,Date.now())+2*864e5).toISOString();
   const key=`${region}|${from.slice(0,10)}|${to.slice(0,10)}|${state.currentProduct||""}|${state.currentGasProduct||""}`;
   if(state.tariffKey===key) return;
-  setStatus("Finding Octopus tariffs for your region…");
-  const list=await getAll(`${API}/products/?brand=OCTOPUS_ENERGY&is_business=false&page_size=100`);
-  const prods=list.filter(p=>p.direction==="IMPORT"&&!p.is_prepay&&!p.is_business&&!/^ZERO-|PREPAY|TWIN/.test(p.code)).map(p=>({code:p.code,name:p.display_name}));
-  for(const c of [...EXTRA_PRODUCTS, state.currentProduct, state.currentGasProduct]) if(c && !prods.some(p=>p.code===c)) prods.push({code:c,name:null});
+  setStatus("Finding tariffs from Octopus, EDF and E.ON Next for your region…");
+  const lists=await Promise.all(SUPPLIERS.map(sup=>supplierProducts(sup).catch(()=>[])));
+  const prods=lists.flat();
   let done=0;
   const one=async(p,d,fuel)=>{
-    const t=(d[fuel==="gas"?"single_register_gas_tariffs":"single_register_electricity_tariffs"]||{})["_"+region];
+    const sup=p.sup, t=(d[fuel==="gas"?"single_register_gas_tariffs":"single_register_electricity_tariffs"]||{})["_"+region];
     const tt=t&&(t.direct_debit_monthly||Object.values(t)[0]);
     if(!tt) return null;
-    const base=`${API}/products/${p.code}/${fuel==="gas"?"gas":"electricity"}-tariffs/${tt.code}`;
+    const isGasBundle=/_GAS(_|$)/.test(p.code);
+    if(fuel==="elec"&&isGasBundle) return null;     // the electricity half comes from the non-gas product
+    const base=`${sup.api}/products/${p.code}/${fuel==="gas"?"gas":"electricity"}-tariffs/${tt.code}`;
     const [rates,stand]=await Promise.all([
       getAll(`${base}/standard-unit-rates/?period_from=${from}&period_to=${to}&page_size=1500`),
       getAll(`${base}/standing-charges/?period_from=${from}&period_to=${to}&page_size=1500`)]);
     if(!rates.length) return null;
-    return {id:p.code, code:p.code, fuel, tariffCode:tt.code, name:p.name||d.display_name||d.full_name, isAgile:p.code.startsWith("AGILE"),
-      rates:sortRates(rates), standing:sortRates(stand), exitFee:tt.exit_fees_inc_vat||0, tags:eligibility(p.code), source:"octopus"};
+    const sr=sortRates(rates);
+    // still on sale: has a price covering today
+    if(lookup(sr,Date.now())==null) return null;
+    const recent=sr.filter(r=>r.from>Date.now()-7*864e5).length;
+    const brand = p.code.startsWith("SAINSBURYS") ? "Sainsbury's" : sup.name;
+    const fam=family(p.code);
+    const tags=eligibility(p.code);
+    if(isGasBundle) tags.unshift(`Only with ${brand} ${fam.replace(/_GAS$/,"").replace(/^(NEXT_|SAINSBURYS_)/,"").replace(/_/g," ").toLowerCase()} electricity`);
+    return {id:sup.key==="octopus"?p.code:`${sup.key}:${p.code}`, code:p.code, supplier:sup.key, family:fam, bundle:isGasBundle?fam.replace(/_GAS$/,""):null,
+      fuel, tariffCode:tt.code, name:(sup.key==="octopus"?"":brand+" · ")+(p.name||d.display_name||d.full_name).replace(/^Sainsbury'?s( Energy)? /,""),
+      isAgile: p.code.startsWith("AGILE") || recent>=7*30,
+      rates:sr, standing:sortRates(stand), exitFee:tt.exit_fees_inc_vat||0, tags, source:"api"};
   };
-  const loaded=await pool(prods,4,async p=>{
+  const loaded=await pool(prods,6,async p=>{
     try{
-      const d=await getJSON(`${API}/products/${p.code}/`);
+      const d=await getJSON(`${p.sup.api}/products/${p.code}/`);
       const [e,g]=await Promise.all([one(p,d,"elec").catch(()=>null), one(p,d,"gas").catch(()=>null)]);
       setStatus(`Loading tariff prices… ${++done} of ${prods.length}`);
       return [e,g];
@@ -561,6 +630,8 @@ async function loadTariffs(){
   });
   state.tariffs=loaded.map(x=>x[0]).filter(Boolean);
   state.gasTariffs=loaded.map(x=>x[1]).filter(Boolean);
+  // a gas tariff tied to an electricity tariff we don't have can be taken on its own
+  for(const g of state.gasTariffs) if(g.bundle&&!state.tariffs.some(e=>e.supplier===g.supplier&&e.family===g.bundle)){ g.bundle=null; g.tags=g.tags.filter(t=>!t.startsWith("Only with")); }
   state.tariffKey=key;
   fillCurrentSelect();
 }
@@ -569,7 +640,7 @@ async function loadTariffs(){
 function pricing(tar, basis, s=state.slots){
   const n=s.length, p=new Float64Array(n); let est=0;
   if(tar.source==="custom"){
-    const bands=(tar.fuel==="gas"?[]:tar.bands).map(b=>({f:toMin(b.from),t:toMin(b.to),r:+b.rate}));
+    const bands=(tar.fuel==="gas"||tar.applies==="car"?[]:tar.bands).map(b=>({f:toMin(b.from),t:toMin(b.to),r:+b.rate}));
     const prof=new Float64Array(48);
     for(let k=0;k<48;k++){ const b=bands.find(b=>inWindow(k*30,b.f,b.t)); prof[k]=b?b.r:+tar.defaultRate; }
     for(let i=0;i<n;i++) p[i]=prof[s[i].idx];
@@ -657,10 +728,13 @@ function costOut(s, days, kwh, pr){
 
 function customValid(c){
   const num=v=>v!==""&&v!=null&&isFinite(parseFloat(v));
-  return !!(c.name&&num(c.standing)&&num(c.defaultRate)&&(c.fuel==="gas"||c.bands.every(b=>b.from&&b.to&&num(b.rate))));
+  if(!(c.name&&num(c.standing)&&num(c.defaultRate))) return false;
+  if(c.fuel==="gas") return true;
+  if(c.applies==="car") return num(c.carRate);
+  return c.bands.every(b=>b.from&&b.to&&num(b.rate));
 }
 function customAsTariffs(fuel){
-  return state.custom.filter(c=>(c.fuel||"elec")===fuel&&customValid(c)).map(c=>({...c,source:"custom",tags:["Entered by you"]}));
+  return state.custom.filter(c=>(c.fuel||"elec")===fuel&&customValid(c)).map(c=>({...c,source:"custom",tags:[c.note||"Entered by you", ...(c.applies==="car"?["Cheap rate for car charging only"]:[])]}));
 }
 
 function calc(){
@@ -673,6 +747,13 @@ function calc(){
   const scale=365/prep.days.size;
   state.results=all.filter(t=>canGet(t)||t.id===curId).map(t=>{
     const pr=pricing(t,basis);
+    if(t.applies==="car"){
+      // Detected EV charging is billed at the car rate whenever it happens; everything else at the standard rate.
+      const car=+t.carRate, p2=new Float64Array(actual.length);
+      for(let i=0;i<p2.length;i++) p2[i]=actual[i]>0?(prep.home[i]*pr.p[i]+prep.ev[i]*car)/actual[i]:pr.p[i];
+      const pr2={...pr,p:p2}, used=costOut(state.slots,prep.days,actual,pr2);
+      return {t,pr:pr2,used,sh:used,yearUsed:used.total*scale,yearSh:used.total*scale,estPct:0};
+    }
     const used=costOut(state.slots,prep.days,actual,pr);
     let sh=costOut(state.slots,prep.days,simulate(prep,pr.p),pr);
     if(sh.total>used.total) sh=used;
@@ -682,7 +763,8 @@ function calc(){
   const g=state.gas;
   if(g&&g.slots.length){
     const gk=new Float64Array(g.slots.map(x=>x.kwh)), gscale=365/g.days.size;
-    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].map(t=>{
+    const curG=currentId("gas");
+    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].filter(t=>supplierOn(t)||t.id===curG).map(t=>{
       const pr=pricing(t,basis,g.slots);
       const c=costOut(g.slots,g.days,gk,pr);
       return {t,pr,c,year:c.total*gscale,estPct:pr.est/g.slots.length};
@@ -783,7 +865,13 @@ function renderGas(){
 }
 
 function renderBill(){
-  const be=state.results[0], bg=state.gasResults[0], ce=currentResult(), cg=currentGasResult();
+  const ce=currentResult(), cg=currentGasResult();
+  let be=state.results[0], bg=null, bestSum=Infinity;
+  for(const e of state.results){
+    const gs=state.gasResults.filter(g=>!g.t.bundle||(g.t.supplier===e.t.supplier&&g.t.bundle===e.t.family));
+    const g=gs[0]||null, sum=e.yearSh+(g?g.year:0);
+    if(sum<bestSum){ bestSum=sum; be=e; bg=g; }
+  }
   if(!be){ $("#billPanel").hidden=true; return; }
   $("#billPanel").hidden=false;
   const hasGas=!!(state.gas&&state.gas.slots.length);
@@ -882,23 +970,26 @@ function renderCustom(){
         <label class="f">Name <input id="cn${ci}" data-k="name" value="${esc(c.name)}" placeholder="e.g. EDF EV tariff"></label>
         <label class="f">Fuel <select id="cf${ci}" data-k="fuel"><option value="elec"${c.fuel!=="gas"?" selected":""}>Electricity</option><option value="gas"${c.fuel==="gas"?" selected":""}>Gas</option></select></label>
         <label class="f">Standing charge (p/day) <input id="cs${ci}" data-k="standing" type="number" step="0.01" value="${esc(c.standing)}"></label>
-        <label class="f">${c.fuel==="gas"?"Unit rate":"Rate at all other times"} (p/kWh) <input id="cr${ci}" data-k="defaultRate" type="number" step="0.01" value="${esc(c.defaultRate)}"></label>
+        <label class="f">${c.fuel==="gas"?"Unit rate":c.applies==="car"?"Standard rate":"Rate at all other times"} (p/kWh) <input id="cr${ci}" data-k="defaultRate" type="number" step="0.01" value="${esc(c.defaultRate)}"></label>
+        ${c.fuel==="gas"?"":`<label class="f">Cheap rate applies to <select id="ca${ci}" data-k="applies"><option value="band"${c.applies!=="car"?" selected":""}>Whole home, at set times</option><option value="car"${c.applies==="car"?" selected":""}>Car charging only, any time</option></select></label>`}
+        ${c.fuel!=="gas"&&c.applies==="car"?`<label class="f">Car charging rate (p/kWh) <input id="cc${ci}" data-k="carRate" type="number" step="0.01" value="${esc(c.carRate||"")}"></label>`:""}
       </div>
+      ${c.note?`<p class="note" style="font-size:12px;color:var(--warn)">${esc(c.note)}</p>`:""}
       ${customValid(c)?"":'<p class="note" style="color:var(--warn)">Fill in every field to include this tariff in the rankings.</p>'}
-      <div class="bands" ${c.fuel==="gas"?"hidden":""}>${c.bands.map((b,bi)=>`
+      <div class="bands" ${c.fuel==="gas"||c.applies==="car"?"hidden":""}>${c.bands.map((b,bi)=>`
         <div class="band" data-bi="${bi}">
           <label class="f">Cheap rate from <input id="bf${ci}_${bi}" data-b="from" type="time" value="${esc(b.from)}"></label>
           <label class="f">until <input id="bt${ci}_${bi}" data-b="to" type="time" value="${esc(b.to)}"></label>
           <label class="f">p/kWh <input id="br${ci}_${bi}" data-b="rate" type="number" step="0.01" value="${esc(b.rate)}"></label>
           <button class="btn ghost small" data-act="delband">Remove</button>
         </div>`).join("")}</div>
-      <div class="row">${c.fuel==="gas"?"":'<button class="btn ghost small" data-act="addband">Add a time band</button>'}<button class="btn ghost small" data-act="del" style="color:var(--bad);border-color:var(--bad)">Delete tariff</button></div>
+      <div class="row">${c.fuel==="gas"||c.applies==="car"?"":'<button class="btn ghost small" data-act="addband">Add a time band</button>'}<button class="btn ghost small" data-act="del" style="color:var(--bad);border-color:var(--bad)">Delete tariff</button></div>
     </div>`).join("");
 }
 function saveCustom(){ store.set("custom",state.custom); }
 $("#customList").addEventListener("input",e=>{
   const box=e.target.closest(".custom"); if(!box) return; const c=state.custom[+box.dataset.ci];
-  if(e.target.dataset.k) c[e.target.dataset.k]=e.target.value;
+  if(e.target.dataset.k){ c[e.target.dataset.k]=e.target.value; if(c.note&&e.target.dataset.k!=="name") c.note=c.note.replace(/^Eastern-region prices/,"Edited; originally Eastern-region prices"); }
   if(e.target.dataset.b){ c.bands[+e.target.closest(".band").dataset.bi][e.target.dataset.b]=e.target.value; }
   saveCustom(); clearTimeout(window._ct);
   window._ct=setTimeout(()=>{ const a=document.activeElement&&document.activeElement.id; renderCustom(); fillCurrentSelect(); calc(); if(a&&$("#"+a)) $("#"+a).focus(); },700);
@@ -908,7 +999,7 @@ $("#customList").addEventListener("click",e=>{
   if(act==="addband") c.bands.push({from:"00:00",to:"05:00",rate:""});
   if(act==="delband") c.bands.splice(+e.target.closest(".band").dataset.bi,1);
   if(act==="del") state.custom.splice(ci,1);
-  saveCustom(); renderCustom(); calc();
+  saveCustom(); renderCustom(); renderTemplates(); fillCurrentSelect(); calc();
 });
 $("#addCustom").addEventListener("click",()=>{
   state.custom.push({id:"custom-"+Date.now(),fuel:"elec",name:"",standing:"",defaultRate:"",bands:[{from:"00:00",to:"05:00",rate:""}]});
@@ -956,7 +1047,34 @@ $("#gasFile").addEventListener("change",async e=>{
 });
 $("#csvCurrentGas").addEventListener("change",e=>{ store.set("cmp_gas",e.target.value); e.target.dataset.last=e.target.value; calc(); });
 for(const id of ["gasUnit","gasCv"]) $("#"+id).addEventListener("change",()=>{ convertGas(); calc(); });
-for(const id of ["hasEv","hasHp","hasStorage","hasSolar","showAll"]) $("#"+id).addEventListener("change",()=>calc());
+for(const id of ["hasEv","hasHp","hasStorage","hasSolar","showAll","sup_octopus","sup_edf","sup_eon","sup_custom"]) $("#"+id).addEventListener("change",()=>calc());
+function renderTemplates(){
+  $("#templates").innerHTML=TEMPLATES.map((t,i)=>{ const have=state.custom.some(c=>c.name===t.name);
+    return `<button type="button" class="btn ghost small" data-tpl="${i}" ${have?"disabled":""}>${esc(t.name)}${have?" ✓":""}</button>`; }).join("");
+}
+$("#templates").addEventListener("click",e=>{
+  const i=e.target.dataset.tpl; if(i==null) return; const t=TEMPLATES[+i];
+  state.custom.push({id:"custom-"+Date.now(),fuel:"elec",applies:"band",carRate:"",...JSON.parse(JSON.stringify(t)),
+    note:`Eastern-region prices from Electrifying.com (2 Oct 2026)${t.carRate===""?". Car charging rate not listed: enter it from OVO":""}. Check your region's prices.`});
+  saveCustom(); renderCustom(); renderTemplates(); fillCurrentSelect(); calc();
+});
+// Region from postcode: try just the outward code first, so the full postcode is only sent when needed.
+$("#findRegion").addEventListener("click",async()=>{
+  const raw=$("#postcode").value.toUpperCase().replace(/[^A-Z0-9 ]/g,"").trim(), note=$("#postcodeNote");
+  if(!raw){ note.textContent="Enter a postcode first."; return; }
+  const compact=raw.replace(/\s+/g,""), outward=raw.includes(" ")?raw.split(/\s+/)[0]:(compact.length>4?compact.slice(0,-3):compact);
+  const ask=async pc=>(await getJSON(`${API}/industry/grid-supply-points/?postcode=${encodeURIComponent(pc)}`)).results.map(r=>r.group_id.replace("_",""));
+  try{
+    note.textContent="Looking up…";
+    let regs=await ask(outward);
+    if(regs.length>1&&compact.length>outward.length) regs=await ask(compact);
+    regs=regs.filter(r=>REGIONS[r]);
+    if(!regs.length){ note.textContent="Couldn't find that postcode. Check it or choose your region from the list."; return; }
+    if(regs.length>1){ note.textContent=`${outward} covers ${regs.map(r=>REGIONS[r]).join(", ")}. Enter your full postcode to narrow it down.`; return; }
+    note.textContent=`Region: ${REGIONS[regs[0]]}`;
+    if(state.region!==regs[0]){ state.region=regs[0]; $("#region").value=regs[0]; if(state.slots.length) await run(); }
+  }catch(err){ note.textContent=err.message; }
+});
 $("#csvFile").addEventListener("change",async e=>{
   const f=e.target.files[0]; if(!f) return;
   try{ state.currentProduct=null; state.currentGasProduct=null; if(state.source==="sample") state.gas=null; setSlots(parseCSV(await f.text()),"csv"); setStatus(`Read ${state.slots.length.toLocaleString()} half-hours from ${f.name}.`); await run(); }
@@ -971,6 +1089,7 @@ $("#region").value=state.region;
 $("#nowLabel").textContent="Prices fetched live · "+new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
 const cred=store.get("cred"); if(cred){ $("#apiKey").value=cred.key; $("#acct").value=cred.acct; $("#remember").checked=true; }
 renderCustom();
+renderTemplates();
 // open in a working state with sample data
 loadSample();
 </script>
