@@ -1,0 +1,967 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tariff Truth</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one working column — data in, assumptions, ranked results, then detail. Night-blue = off-peak, orange = peak. */
+:root{
+  --bg:#f4f6fa; --surface:#ffffff; --surface-2:#eef1f7; --line:#d9deea;
+  --ink:#121729; --ink-2:#4a5068; --ink-3:#7a8099;
+  --accent:#3646c7; --accent-ink:#ffffff; --accent-soft:#e3e6fb;
+  --offpeak:#2a78d6; --peak:#eb6834; --home:#a9b2c8; --band:rgba(42,120,214,.10);
+  --good:#0f7a43; --good-soft:#dcf2e5; --warn:#9a5b00; --warn-soft:#fbefd6; --bad:#b3261e;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0d1020; --surface:#151a2e; --surface-2:#1c2239; --line:#2b3352;
+  --ink:#eef0f8; --ink-2:#b4bad0; --ink-3:#848ba6;
+  --accent:#8c97ff; --accent-ink:#0d1020; --accent-soft:#262d55;
+  --offpeak:#3987e5; --peak:#d95926; --home:#56607d; --band:rgba(57,135,229,.16);
+  --good:#4cc887; --good-soft:#123826; --warn:#f0b54d; --warn-soft:#3a2c0f; --bad:#ff8a80;
+  color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0d1020; --surface:#151a2e; --surface-2:#1c2239; --line:#2b3352;
+  --ink:#eef0f8; --ink-2:#b4bad0; --ink-3:#848ba6;
+  --accent:#8c97ff; --accent-ink:#0d1020; --accent-soft:#262d55;
+  --offpeak:#3987e5; --peak:#d95926; --home:#56607d; --band:rgba(57,135,229,.16);
+  --good:#4cc887; --good-soft:#123826; --warn:#f0b54d; --warn-soft:#3a2c0f; --bad:#ff8a80;
+  color-scheme:dark;}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body)}
+.wrap{max-width:1080px;margin:0 auto;padding-inline:20px;padding-block:28px 64px;display:grid;gap:28px}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(28px,4vw,40px);font-weight:700}
+h2{font-size:22px;font-weight:700}
+h3{font-size:16px;font-weight:700}
+p{margin:0}
+.lede{color:var(--ink-2);max-width:66ch;margin-top:6px}
+.eyebrow{font:500 11.5px var(--f-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.mono,.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+header.top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:end}
+.clock{font:500 12px var(--f-mono);color:var(--ink-3);display:flex;gap:6px;align-items:center}
+.clock .dot{width:8px;height:8px;border-radius:50%;background:var(--offpeak)}
+section.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px;display:grid;gap:16px;min-width:0}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.tabs{display:flex;gap:4px;background:var(--surface-2);padding:4px;border-radius:8px;width:max-content;max-width:100%;flex-wrap:wrap}
+.tabs button{border:0;background:transparent;color:var(--ink-2);font:500 14px var(--f-body);padding:7px 14px;border-radius:6px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+label.f{display:grid;gap:5px;font-size:13px;color:var(--ink-2);min-width:0}
+label.f small{color:var(--ink-3);font-size:12px}
+input,select{font:14px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;min-width:0}
+input[type=checkbox]{width:auto}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.btn{border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);font:600 14px var(--f-body);padding:9px 16px;border-radius:6px;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.small{padding:5px 10px;font-size:13px}
+.btn:disabled{opacity:.5;cursor:progress}
+.check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink-2)}
+.status{font:13px var(--f-mono);color:var(--ink-2);min-height:1.4em}
+.status.err{color:var(--bad)}
+.banner{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 14px;font-size:13.5px}
+.banner b{color:inherit}
+.tiles{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}
+.tile{background:var(--surface-2);border-radius:8px;padding:12px 14px;display:grid;gap:2px}
+.tile .v{font:500 22px var(--f-mono);font-variant-numeric:tabular-nums}
+.tile .l{font-size:12.5px;color:var(--ink-2)}
+.chart{position:relative;min-width:0}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{fill:var(--ink-3);font:11px var(--f-mono)}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-2)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.tip{position:absolute;pointer-events:none;background:var(--ink);color:var(--bg);font:12px/1.45 var(--f-mono);padding:7px 9px;border-radius:6px;white-space:nowrap;transform:translate(-50%,-110%);z-index:5}
+.tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:14px}
+th,td{padding:10px 12px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+th{font:500 11.5px var(--f-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);background:var(--surface-2);position:sticky;top:0}
+td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr.sel{background:var(--accent-soft)}
+tr:last-child td{border-bottom:0}
+.tname{font-weight:600}
+.chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+.chip{font:500 11px var(--f-mono);padding:2px 7px;border-radius:99px;background:var(--surface-2);color:var(--ink-2);border:1px solid var(--line)}
+.chip.cur{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chip.best{background:var(--good-soft);color:var(--good);border-color:transparent}
+.chip.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.save{color:var(--good)} .cost{color:var(--bad)}
+.sub{display:block;font-size:12px;color:var(--ink-3)}
+.custom{border:1px solid var(--line);border-radius:8px;padding:14px;display:grid;gap:12px}
+.bands{display:grid;gap:8px}
+.band{display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:8px;align-items:end}
+.note{font-size:13px;color:var(--ink-2);max-width:75ch}
+.note li{margin-bottom:4px}
+details summary{cursor:pointer;font-weight:600}
+@media (max-width:560px){.band{grid-template-columns:1fr 1fr}.wrap{padding-inline:16px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <div class="eyebrow">Half-hourly cost check · Great Britain electricity</div>
+    <h1>Tariff Truth</h1>
+    <p class="lede">Price every half-hour you actually used against every tariff's real rates. See what you'd have paid as you use energy now, and what you'd pay if you moved your EV charging into each tariff's cheapest slots.</p>
+  </div>
+  <div class="clock"><span class="dot"></span><span id="nowLabel"></span></div>
+</header>
+
+<!-- 1. DATA -->
+<section class="panel" id="dataPanel">
+  <div class="sec-head"><h2>Your usage</h2><span class="eyebrow" id="dataSourceLabel">No data yet</span></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="octopus">Fetch from Octopus</button>
+    <button role="tab" aria-selected="false" data-tab="csv">Upload a CSV</button>
+    <button role="tab" aria-selected="false" data-tab="sample">Sample data</button>
+  </div>
+
+  <div data-pane="octopus" class="grid" style="align-items:end">
+    <label class="f">API key <input id="apiKey" type="password" autocomplete="off" placeholder="sk_live_…"><small><a href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access" target="_blank" rel="noopener">Find it in your Octopus dashboard</a></small></label>
+    <label class="f">Account number <input id="acct" placeholder="A-1234ABCD" autocomplete="off"><small>Starts with A-</small></label>
+    <label class="f">Period
+      <select id="period">
+        <option value="30">Last 30 days</option><option value="90">Last 90 days</option>
+        <option value="180">Last 6 months</option><option value="365" selected>Last 12 months</option><option value="730">Last 2 years</option>
+      </select><small>12 months captures winter and summer</small></label>
+    <div style="display:grid;gap:8px">
+      <label class="check"><input type="checkbox" id="remember"> Remember on this device</label>
+      <button class="btn" id="fetchBtn">Fetch my usage</button>
+    </div>
+  </div>
+
+  <div data-pane="csv" hidden class="grid" style="align-items:end">
+    <label class="f">Electricity CSV <input type="file" id="csvFile" accept=".csv,text/csv"><small>Octopus dashboard export works as-is. Any file with a start time and kWh column works too.</small></label>
+    <label class="f">Your current electricity tariff <select id="csvCurrent"></select></label>
+    <label class="f">Gas CSV (optional) <input type="file" id="gasFile" accept=".csv,text/csv"><small>Readings in kWh or m³</small></label>
+    <label class="f">Your current gas tariff <select id="csvCurrentGas"></select></label>
+  </div>
+
+  <div data-pane="sample" hidden class="row">
+    <p class="note">120 days of made-up usage for a home with an EV that mostly charges after 23:30, plus occasional daytime top-ups.</p>
+    <button class="btn ghost" id="sampleBtn">Load sample data</button>
+  </div>
+
+  <div class="status" id="status" role="status"></div>
+  <div class="banner" id="sampleBanner" hidden><b>Example data.</b> These figures come from made-up usage. Fetch from Octopus or upload a CSV to see your own.</div>
+</section>
+
+<!-- 2. SUMMARY -->
+<section class="panel" id="summaryPanel" hidden>
+  <div class="sec-head"><h2>When you use it</h2><span class="eyebrow" id="rangeLabel"></span></div>
+  <div class="tiles" id="tiles"></div>
+  <div class="legend"><span><i style="background:var(--home)"></i>Household</span><span><i style="background:var(--offpeak)"></i>Detected EV charging</span><span><i style="background:var(--band);border:1px solid var(--offpeak)"></i><span id="bandLegend">Your cheap-rate window</span></span></div>
+  <div class="chart" id="profileChart"></div>
+  <p class="note">Average kWh in each half-hour of the day, over every day in your data.</p>
+</section>
+
+<!-- 3. ASSUMPTIONS -->
+<section class="panel" id="assumePanel">
+  <div class="sec-head"><h2>Assumptions</h2><span class="eyebrow">Changes recalculate instantly</span></div>
+  <div class="grid">
+    <label class="f">Region <select id="region"></select><small>Set automatically when you fetch from Octopus</small></label>
+    <label class="f">Price basis
+      <select id="basis"><option value="today" selected>Today's rates applied to my usage</option><option value="hist">Rates at the time I used it</option></select>
+      <small>Agile always uses the real half-hourly prices for each date</small></label>
+    <label class="f">EV detection threshold (kW) <input id="evKw" type="number" step="0.1" min="1" value="2.8"><small>Half-hours drawing more than this count as car charging</small></label>
+    <label class="f">Charger power (kW) <input id="chargerKw" type="number" step="0.1" min="1" value="7"><small>Caps how fast shifted charging can happen</small></label>
+    <label class="f">Car plugged in from <input id="plugFrom" type="time" value="18:00"></label>
+    <label class="f">Car needed by <input id="plugTo" type="time" value="08:00"></label>
+    <label class="f">Other usage you'd also shift (%) <input id="flexPct" type="number" min="0" max="60" step="5" value="10"><small>Dishwasher, washing, etc. Moved to the cheapest times each day</small></label>
+    <label class="f">Gas meter reports in
+      <select id="gasUnit"><option value="auto" selected>Work it out</option><option value="kWh">kWh</option><option value="m3">Cubic metres (m³)</option></select>
+      <small id="gasUnitNote">Newer SMETS2 meters usually report m³</small></label>
+    <label class="f">Gas calorific value (MJ/m³) <input id="gasCv" type="number" step="0.1" min="35" max="43" value="39.5"><small>Shown on your gas bill. Used to convert m³ to kWh</small></label>
+  </div>
+  <div class="row" style="gap:18px">
+    <span class="eyebrow">I have</span>
+    <label class="check"><input type="checkbox" id="hasEv" checked> An EV</label>
+    <label class="check"><input type="checkbox" id="hasHp"> A heat pump</label>
+    <label class="check"><input type="checkbox" id="hasStorage"> Storage heaters</label>
+    <label class="check"><input type="checkbox" id="hasSolar"> Solar and a battery</label>
+    <label class="check"><input type="checkbox" id="showAll"> Show tariffs I can't get</label>
+  </div>
+</section>
+
+<!-- BEST BILL -->
+<section class="panel" id="billPanel" hidden>
+  <div class="sec-head"><h2>Your yearly bill</h2><span class="eyebrow" id="billLabel">Electricity + gas</span></div>
+  <div class="tiles" id="billTiles"></div>
+  <p class="note" id="billNote"></p>
+</section>
+
+<!-- 4. RESULTS -->
+<section class="panel" id="resultsPanel">
+  <div class="sec-head"><h2>Electricity tariffs ranked on your usage</h2><span class="eyebrow" id="resultsLabel"></span></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>Tariff</th>
+        <th class="n">As you use it now<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
+        <th class="n">If you shift<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
+        <th class="n">vs your tariff<span class="sub" style="text-transform:none;letter-spacing:0">shifted, per year</span></th>
+        <th class="n">Avg price<span class="sub" style="text-transform:none;letter-spacing:0">shifted, p/kWh</span></th>
+        <th class="n">Standing<span class="sub" style="text-transform:none;letter-spacing:0">p/day</span></th>
+      </tr></thead>
+      <tbody id="resultsBody"><tr><td colspan="6" style="color:var(--ink-3)">Load usage data to rank tariffs.</td></tr></tbody>
+    </table>
+  </div>
+  <p class="note" id="scaleNote"></p>
+</section>
+
+<!-- 5. DETAIL -->
+<section class="panel" id="detailPanel" hidden>
+  <div class="sec-head"><h2 id="detailTitle">Month by month</h2>
+    <div class="tabs" role="tablist" id="scenTabs">
+      <button role="tab" aria-selected="false" data-scen="asUsed">As used</button>
+      <button role="tab" aria-selected="true" data-scen="shifted">If you shift</button>
+    </div></div>
+  <div class="legend" id="monthLegend"></div>
+  <div class="chart" id="monthChart"></div>
+  <p class="note">Includes standing charges. Click any tariff in the table to compare it with yours.</p>
+</section>
+
+<!-- GAS -->
+<section class="panel" id="gasPanel" hidden>
+  <div class="sec-head"><h2>Gas tariffs ranked on your usage</h2><span class="eyebrow" id="gasLabel"></span></div>
+  <div class="tiles" id="gasTiles"></div>
+  <div class="tablewrap">
+    <table>
+      <thead><tr>
+        <th>Tariff</th>
+        <th class="n">Per year</th>
+        <th class="n">vs your tariff<span class="sub" style="text-transform:none;letter-spacing:0">per year</span></th>
+        <th class="n">Unit rate<span class="sub" style="text-transform:none;letter-spacing:0">avg p/kWh</span></th>
+        <th class="n">Standing<span class="sub" style="text-transform:none;letter-spacing:0">p/day</span></th>
+      </tr></thead>
+      <tbody id="gasBody"></tbody>
+    </table>
+  </div>
+  <p class="note" id="gasScaleNote"></p>
+</section>
+
+<!-- 6. CUSTOM -->
+<section class="panel" id="customPanel">
+  <div class="sec-head"><h2>Other suppliers' tariffs</h2><button class="btn ghost small" id="addCustom">Add a tariff</button></div>
+  <p class="note">Only Octopus publishes its prices through an API. For EDF, British Gas, OVO, E.ON Next and others, copy the standing charge, rates and times from the supplier's tariff page (inc. VAT, for your region). Times are UK clock time. Saved in this browser.</p>
+  <div id="customList" style="display:grid;gap:12px"></div>
+</section>
+
+<section class="panel">
+  <details>
+    <summary>How the numbers are worked out</summary>
+    <ul class="note" style="margin-top:10px;padding-left:18px">
+      <li>Each half-hour of your usage is multiplied by the tariff's unit rate for that half-hour. Standing charges are added for every day in your data. Yearly figures are scaled from the days you have.</li>
+      <li><b>Today's rates</b> applies each tariff's current prices by time of day to all of your history, which is the fairest way to choose what to switch to. <b>Rates at the time</b> uses the price that was in force on each date, where Octopus has it.</li>
+      <li>EV charging is any half-hour over the detection threshold, minus your normal household use for that time of day. <b>If you shift</b> moves that charging into the cheapest half-hours of each tariff between plug-in and departure, at no more than your charger's power. It also moves the set share of your other usage into each day's cheapest slots. It never makes a day cost more than as used.</li>
+      <li>Intelligent Octopus Go also bills extra smart-charging slots outside 23:30–05:30 at the cheap rate. Octopus's consumption data doesn't show which slots those were, so the "as used" figure for Intelligent Go can be slightly high.</li>
+      <li>Gas is priced the same way, per half-hour or per day depending on what your meter sends. There's no shifting for gas. Readings in m³ are converted to kWh as m³ × 1.02264 × calorific value ÷ 3.6, the formula suppliers use on bills.</li>
+      <li><b>Your yearly bill</b> adds the cheapest electricity tariff you can get (if you shift) to the cheapest gas tariff. Tariffs that need equipment you haven't ticked are left out.</li>
+      <li>Export payments aren't included yet.</li>
+    </ul>
+  </details>
+</section>
+
+</div>
+
+<script>
+"use strict";
+const API = "https://api.octopus.energy/v1";
+const REGIONS = {A:"Eastern England",B:"East Midlands",C:"London",D:"Merseyside & N Wales",E:"West Midlands",F:"North East England",G:"North West England",H:"Southern England",J:"South East England",K:"South Wales",L:"South West England",M:"Yorkshire",N:"South Scotland",P:"North Scotland"};
+// Products that are open to new customers but not always in the public listing.
+const EXTRA_PRODUCTS = ["INTELLI-VAR-24-10-29"];
+
+const $ = s => document.querySelector(s);
+const store = {
+  get(k){ try{ return JSON.parse(localStorage.getItem("tt_"+k)); }catch(e){ return null; } },
+  set(k,v){ try{ localStorage.setItem("tt_"+k, JSON.stringify(v)); }catch(e){} },
+  del(k){ try{ localStorage.removeItem("tt_"+k); }catch(e){} }
+};
+
+const state = {
+  slots: [],           // {t, kwh, date, min, idx}
+  source: null,        // 'octopus' | 'csv' | 'sample'
+  currentProduct: null,
+  region: "C",
+  tariffs: [],         // loaded Octopus tariffs
+  tariffKey: "",
+  custom: store.get("custom") || [],
+  results: [],
+  selected: null,
+  scen: "shifted",
+  gas: null,           // {raw:[{t,v}], unitHint, slots, unit, days}
+  currentGasProduct: null,
+  gasTariffs: [],
+  gasResults: [],
+};
+state.custom.forEach(c=>{ if(!c.fuel) c.fuel="elec"; });
+
+/* ---------- London time helpers ---------- */
+const lonFmt = new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/London",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+function lonParts(ms){
+  const o={}; for(const p of lonFmt.formatToParts(ms)) o[p.type]=p.value;
+  const h = +o.hour % 24;
+  return {y:+o.year,m:+o.month,d:+o.day,date:`${o.year}-${o.month}-${o.day}`,min:h*60+(+o.minute)};
+}
+function lonOffset(ms){ const p=lonParts(ms); return Date.UTC(p.y,p.m-1,p.d,Math.floor(p.min/60),p.min%60) - Math.floor(ms/60000)*60000; }
+function lonToUtc(y,m,d,min){ const g=Date.UTC(y,m-1,d,Math.floor(min/60),min%60); let t=g-lonOffset(g); return g-lonOffset(t); }
+const hhmm = m => String(Math.floor(m/60)%24).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const toMin = s => { const [h,m]=(s||"0:0").split(":").map(Number); return h*60+m; };
+const inWindow = (min, from, to) => from<=to ? (min>=from && min<to) : (min>=from || min<to);
+const gbp = (v,dp=0) => "£"+v.toLocaleString("en-GB",{minimumFractionDigits:dp,maximumFractionDigits:dp});
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function setStatus(msg, err=false){ const s=$("#status"); s.textContent=msg; s.classList.toggle("err",err); }
+
+/* ---------- API ---------- */
+async function getJSON(url, key){
+  const headers = key ? {Authorization:"Basic "+btoa(key+":")} : {};
+  const r = await fetch(url,{headers});
+  if(!r.ok){
+    if(r.status===401||r.status===403) throw new Error("Octopus didn't accept that API key. Check it in your dashboard and try again.");
+    if(r.status===404) throw new Error("Octopus couldn't find that account. Check the account number (it starts with A-).");
+    throw new Error(`Octopus returned an error (${r.status}). Try again in a minute.`);
+  }
+  return r.json();
+}
+async function getAll(url, key){
+  const out=[]; while(url){ const j=await getJSON(url,key); out.push(...j.results); url=j.next; } return out;
+}
+async function pool(items, n, fn){
+  const out=new Array(items.length); let i=0;
+  await Promise.all(Array.from({length:Math.min(n,items.length)},async()=>{ while(i<items.length){ const k=i++; out[k]=await fn(items[k],k); } }));
+  return out;
+}
+
+/* ---------- Data ingestion ---------- */
+function buildSlots(raw){
+  const map=new Map();
+  for(const r of raw){ if(!isFinite(r.t)||!isFinite(r.kwh)) continue; const t=Math.round(r.t/1800000)*1800000; map.set(t,(map.get(t)||0)+r.kwh); }
+  return [...map.entries()].sort((a,b)=>a[0]-b[0]).map(([t,kwh])=>{ const p=lonParts(t); return {t,kwh:Math.max(0,kwh),date:p.date,min:p.min,idx:Math.floor(p.min/30)}; });
+}
+function dayMap(slots){ const days=new Map(); for(const x of slots) if(!days.has(x.date)) days.set(x.date,x.t); return days; }
+function setGas(raw, unitHint){
+  if(!raw||!raw.length){ state.gas=null; return; }
+  state.gas={raw:buildSlots(raw), unitHint};
+  convertGas();
+}
+// Turn raw gas readings into kWh, using the chosen or detected unit.
+function convertGas(){
+  const g=state.gas; if(!g) return;
+  const days=dayMap(g.raw), total=g.raw.reduce((a,x)=>a+x.kwh,0), perDay=total/Math.max(1,days.size);
+  const pick=$("#gasUnit").value;
+  let unit=pick!=="auto"?pick:(g.unitHint||(perDay>=12?"kWh":"m3"));
+  const cv=+$("#gasCv").value||39.5, f=unit==="m3"?1.02264*cv/3.6:1;
+  g.unit=unit; g.slots=g.raw.map(x=>({...x,kwh:x.kwh*f})); g.days=dayMap(g.slots);
+  $("#gasUnitNote").textContent = pick==="auto"
+    ? `Using ${unit==="m3"?"m³":"kWh"}${g.unitHint?" (from your file)":` (readings average ${perDay.toFixed(1)} a day)`}. Change this if the totals look wrong.`
+    : "Newer SMETS2 meters usually report m³";
+}
+function setSlots(raw, source){
+  const slots=buildSlots(raw);
+  if(slots.length<48*3) throw new Error("That's less than 3 days of half-hourly data, too little to compare tariffs.");
+  state.slots=slots; state.source=source;
+  $("#sampleBanner").hidden = source!=="sample";
+  $("#dataSourceLabel").textContent = {octopus:"From your Octopus account",csv:"From your CSV",sample:"Sample data"}[source];
+}
+
+async function fetchOctopus(){
+  const key=$("#apiKey").value.trim(), acct=$("#acct").value.trim().toUpperCase();
+  if(!key||!acct){ setStatus("Enter your API key and account number first.",true); return; }
+  if($("#remember").checked) store.set("cred",{key,acct}); else store.del("cred");
+  const btn=$("#fetchBtn"); btn.disabled=true;
+  try{
+    setStatus("Reading your account…");
+    const a=await getJSON(`${API}/accounts/${encodeURIComponent(acct)}/`,key);
+    const props=(a.properties||[]).slice().sort((x,y)=>(x.moved_out_at?1:0)-(y.moved_out_at?1:0));
+    let mp=null;
+    for(const p of props){ mp=(p.electricity_meter_points||[]).find(m=>!m.is_export); if(mp) break; }
+    if(!mp) throw new Error("No electricity import meter found on this account.");
+    const now=Date.now();
+    const ag=(mp.agreements||[]).filter(g=>new Date(g.valid_from)<=now && (!g.valid_to||new Date(g.valid_to)>now))[0] || (mp.agreements||[]).slice(-1)[0];
+    let region=null;
+    if(ag){ const m=ag.tariff_code.match(/^E-\dR-(.+)-([A-P])$/); if(m){ state.currentProduct=m[1]; region=m[2]; } }
+    if(!region){ try{ const g=await getJSON(`${API}/electricity-meter-points/${mp.mpan}/`); region=(g.gsp||"").replace("_",""); }catch(e){} }
+    if(region && REGIONS[region]){ state.region=region; $("#region").value=region; }
+    const days=+$("#period").value;
+    const to=new Date(); to.setUTCMinutes(0,0,0);
+    const from=new Date(to.getTime()-days*864e5);
+    let best=[];
+    const meters=(mp.meters||[]).slice().reverse();
+    for(const [i,m] of meters.entries()){
+      setStatus(`Downloading half-hourly readings (meter ${i+1} of ${meters.length})…`);
+      const url=`${API}/electricity-meter-points/${mp.mpan}/meters/${encodeURIComponent(m.serial_number)}/consumption/?period_from=${from.toISOString()}&period_to=${to.toISOString()}&page_size=25000&order_by=period`;
+      const rows=await getAll(url,key);
+      if(rows.length>best.length) best=rows;
+    }
+    if(!best.length) throw new Error("Octopus has no half-hourly readings for this meter in that period. Your smart meter may not be sending half-hourly data; check consumption settings in the Octopus app.");
+    setSlots(best.map(r=>({t:Date.parse(r.interval_start),kwh:+r.consumption})),"octopus");
+    // Gas, if the account has it
+    state.currentGasProduct=null; let gasRows=[];
+    let gp=null; for(const p of props){ gp=(p.gas_meter_points||[])[0]; if(gp) break; }
+    if(gp){
+      const gag=(gp.agreements||[]).filter(g=>new Date(g.valid_from)<=now && (!g.valid_to||new Date(g.valid_to)>now))[0] || (gp.agreements||[]).slice(-1)[0];
+      if(gag){ const m=gag.tariff_code.match(/^G-\dR-(.+)-([A-P])$/); if(m) state.currentGasProduct=m[1]; }
+      const gm=(gp.meters||[]).slice().reverse();
+      for(const [i,m] of gm.entries()){
+        setStatus(`Downloading gas readings (meter ${i+1} of ${gm.length})…`);
+        const url=`${API}/gas-meter-points/${gp.mprn}/meters/${encodeURIComponent(m.serial_number)}/consumption/?period_from=${from.toISOString()}&period_to=${to.toISOString()}&page_size=25000&order_by=period`;
+        try{ const rows=await getAll(url,key); if(rows.length>gasRows.length) gasRows=rows; }catch(e){}
+      }
+    }
+    setGas(gasRows.map(r=>({t:Date.parse(r.interval_start),kwh:+r.consumption})),null);
+    setStatus(`Got ${best.length.toLocaleString()} electricity readings${gasRows.length?` and ${gasRows.length.toLocaleString()} gas readings`:""}.`);
+    await run();
+  }catch(e){ setStatus(e.message||String(e),true); }
+  finally{ btn.disabled=false; }
+}
+
+function parseCSV(text){
+  const lines=text.replace(/\r/g,"").split("\n").filter(l=>l.trim());
+  const delim=(lines[0].match(/;/g)||[]).length>(lines[0].match(/,/g)||[]).length?";":",";
+  const split=l=>l.split(delim).map(s=>s.trim().replace(/^"|"$/g,""));
+  const head=split(lines[0]).map(h=>h.toLowerCase());
+  let ci=head.findIndex(h=>h.includes("consum")); if(ci<0) ci=head.findIndex(h=>h.includes("kwh"));
+  let ti=head.findIndex(h=>h.includes("start")); if(ti<0) ti=head.findIndex(h=>/time|date|period|interval/.test(h));
+  if(ci<0||ti<0) throw new Error("Couldn't find the time and kWh columns. The first row needs headers such as 'Start' and 'Consumption (kWh)'.");
+  const out=[];
+  for(const l of lines.slice(1)){ const c=split(l); const t=parseTime(c[ti]); const k=parseFloat(c[ci]); if(t!=null&&isFinite(k)) out.push({t,kwh:k}); }
+  const h=head[ci]; out.unit=/m³|m3|cubic/.test(h)?"m3":/kwh/.test(h)?"kWh":null;
+  return out;
+}
+function parseTime(s){
+  if(!s) return null;
+  if(/[zZ]|[+-]\d\d:?\d\d$/.test(s)){ const t=Date.parse(s.replace(" ","T")); return isNaN(t)?null:t; }
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/);
+  if(m) return lonToUtc(+m[1],+m[2],+m[3],(+m[4])*60+(+m[5]));
+  m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})[ T,]*(\d{1,2}):(\d{2})/);
+  if(m) return lonToUtc(+m[3],+m[2],+m[1],(+m[4])*60+(+m[5]));
+  return null;
+}
+
+function sampleData(){
+  let seed=42; const rnd=()=>{ seed=(seed*1664525+1013904223)%4294967296; return seed/4294967296; };
+  const shape=i=>{ const h=i/2; if(h<6) return .11; if(h<8) return .28; if(h<16) return .22; if(h<21) return .42; if(h<23.5) return .3; return .16; };
+  const end=new Date(); end.setUTCHours(0,0,0,0);
+  const start=end.getTime()-120*864e5, out=[];
+  let evSlots=[];
+  for(let t=start;t<end.getTime();t+=1800000){
+    const p=lonParts(t), i=Math.floor(p.min/30);
+    if(i===47){ // 23:30: decide tonight's charging
+      evSlots = rnd()<.6 ? Array.from({length:3+Math.floor(rnd()*6)},(_,k)=>k) : [];
+    }
+    let k=shape(i)*(.7+rnd()*.6);
+    if(i===47||i===0) k+=.5*rnd();               // appliances on timers
+    const n = i===47 ? 0 : (i<12 ? i+1 : -1);
+    if(evSlots.includes(n)) k+=3.4;
+    if(i>=26&&i<30&&p.d%9===0) k+=3.4;            // occasional daytime top-up
+    out.push({t,kwh:+k.toFixed(3)});
+  }
+  return out;
+}
+
+function sampleGas(){
+  let seed=7; const rnd=()=>{ seed=(seed*1664525+1013904223)%4294967296; return seed/4294967296; };
+  const end=new Date(); end.setUTCHours(0,0,0,0);
+  const start=end.getTime()-120*864e5, out=[];
+  for(let t=start;t<end.getTime();t+=1800000){
+    const p=lonParts(t), h=p.min/60, dayN=(t-start)/864e5;
+    const heat=Math.max(0,(dayN-70)/50);            // heating starts in autumn
+    let k=0;
+    if(h>=6.5&&h<9) k+=.35+heat*1.2;                // hot water + morning heating
+    if(h>=17&&h<22) k+=.12+heat*1.0;                // cooking + evening heating
+    k*= .7+rnd()*.6;
+    out.push({t,kwh:+k.toFixed(3)});
+  }
+  return out;
+}
+
+/* ---------- Tariffs ---------- */
+// What each tariff needs you to have, matched against the "I have" boxes.
+function requirement(code){
+  const c=code.toUpperCase();
+  if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")) return "solar";
+  if(c.startsWith("INTELLI")||c.startsWith("IOG")||c.startsWith("GO-")) return "ev";
+  if(c.startsWith("COSY")) return "hp";
+  if(c.startsWith("SNUG")) return "storage";
+  return null;
+}
+function canGet(t){
+  if(t.source==="custom"||$("#showAll").checked) return true;
+  const r=requirement(t.code||""); if(!r) return true;
+  return $({ev:"#hasEv",hp:"#hasHp",storage:"#hasStorage",solar:"#hasSolar"}[r]).checked;
+}
+function eligibility(code, name){
+  const c=code.toUpperCase(), tags=[];
+  if(c.startsWith("AGILE")) tags.push("Price changes every half-hour");
+  if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")) tags.push("Needs solar + battery");
+  else if(c.startsWith("INTELLI")||c.startsWith("IOG")) tags.push("Needs compatible EV or charger");
+  else if(c.startsWith("GO-")) tags.push("Needs EV or home battery");
+  if(c.startsWith("COSY")) tags.push("Needs a heat pump");
+  if(c.startsWith("SNUG")) tags.push("Needs storage heaters");
+  const fx=c.match(/FIX-(\d+)M/); if(fx) tags.push(`Fixed ${fx[1]} months`);
+  return tags;
+}
+function sortRates(list){
+  return list.filter(r=>!r.payment_method||r.payment_method==="DIRECT_DEBIT")
+    .map(r=>({from:Date.parse(r.valid_from),to:r.valid_to?Date.parse(r.valid_to):Infinity,v:r.value_inc_vat}))
+    .sort((a,b)=>a.from-b.from);
+}
+function lookup(arr,t){
+  let lo=0,hi=arr.length-1,ans=-1;
+  while(lo<=hi){ const mid=(lo+hi)>>1; if(arr[mid].from<=t){ans=mid;lo=mid+1;} else hi=mid-1; }
+  if(ans<0) return null;
+  // newer overlapping entries win; scan back a little in case the newest is closed
+  for(let k=ans;k>=Math.max(0,ans-3);k--){ if(t<arr[k].to) return arr[k].v; }
+  return null;
+}
+
+async function loadTariffs(){
+  const s=state.slots, region=state.region, gs=state.gas?state.gas.raw:[];
+  const first=Math.min(s[0].t, gs.length?gs[0].t:Infinity);
+  const from=new Date(first-2*864e5).toISOString(), to=new Date(Math.max(s[s.length-1].t,Date.now())+2*864e5).toISOString();
+  const key=`${region}|${from.slice(0,10)}|${to.slice(0,10)}|${state.currentProduct||""}|${state.currentGasProduct||""}`;
+  if(state.tariffKey===key) return;
+  setStatus("Finding Octopus tariffs for your region…");
+  const list=await getAll(`${API}/products/?brand=OCTOPUS_ENERGY&is_business=false&page_size=100`);
+  const prods=list.filter(p=>p.direction==="IMPORT"&&!p.is_prepay&&!p.is_business&&!/^ZERO-|PREPAY|TWIN/.test(p.code)).map(p=>({code:p.code,name:p.display_name}));
+  for(const c of [...EXTRA_PRODUCTS, state.currentProduct, state.currentGasProduct]) if(c && !prods.some(p=>p.code===c)) prods.push({code:c,name:null});
+  let done=0;
+  const one=async(p,d,fuel)=>{
+    const t=(d[fuel==="gas"?"single_register_gas_tariffs":"single_register_electricity_tariffs"]||{})["_"+region];
+    const tt=t&&(t.direct_debit_monthly||Object.values(t)[0]);
+    if(!tt) return null;
+    const base=`${API}/products/${p.code}/${fuel==="gas"?"gas":"electricity"}-tariffs/${tt.code}`;
+    const [rates,stand]=await Promise.all([
+      getAll(`${base}/standard-unit-rates/?period_from=${from}&period_to=${to}&page_size=1500`),
+      getAll(`${base}/standing-charges/?period_from=${from}&period_to=${to}&page_size=1500`)]);
+    if(!rates.length) return null;
+    return {id:p.code, code:p.code, fuel, tariffCode:tt.code, name:p.name||d.display_name||d.full_name, isAgile:p.code.startsWith("AGILE"),
+      rates:sortRates(rates), standing:sortRates(stand), exitFee:tt.exit_fees_inc_vat||0, tags:eligibility(p.code), source:"octopus"};
+  };
+  const loaded=await pool(prods,4,async p=>{
+    try{
+      const d=await getJSON(`${API}/products/${p.code}/`);
+      const [e,g]=await Promise.all([one(p,d,"elec").catch(()=>null), one(p,d,"gas").catch(()=>null)]);
+      setStatus(`Loading tariff prices… ${++done} of ${prods.length}`);
+      return [e,g];
+    }catch(e){ return [null,null]; }
+  });
+  state.tariffs=loaded.map(x=>x[0]).filter(Boolean);
+  state.gasTariffs=loaded.map(x=>x[1]).filter(Boolean);
+  state.tariffKey=key;
+  fillCurrentSelect();
+}
+
+/* Price for every slot in the data, plus daily standing charge. */
+function pricing(tar, basis, s=state.slots){
+  const n=s.length, p=new Float64Array(n); let est=0;
+  if(tar.source==="custom"){
+    const bands=(tar.fuel==="gas"?[]:tar.bands).map(b=>({f:toMin(b.from),t:toMin(b.to),r:+b.rate}));
+    const prof=new Float64Array(48);
+    for(let k=0;k<48;k++){ const b=bands.find(b=>inWindow(k*30,b.f,b.t)); prof[k]=b?b.r:+tar.defaultRate; }
+    for(let i=0;i<n;i++) p[i]=prof[s[i].idx];
+    return {p,est:0,standingDay:()=>+tar.standing||0,profile:prof};
+  }
+  // today's time-of-day profile
+  const today=lonParts(Date.now());
+  const profile=new Float64Array(48);
+  const day=(off)=>{ const d=new Date(Date.UTC(today.y,today.m-1,today.d-off)); return [d.getUTCFullYear(),d.getUTCMonth()+1,d.getUTCDate()]; };
+  if(tar.isAgile){
+    // average of the last 30 days that have prices
+    const last=tar.rates[tar.rates.length-1].from, sum=new Float64Array(48), cnt=new Float64Array(48);
+    for(let k=tar.rates.length-1;k>=0&&tar.rates[k].from>last-30*864e5;k--){ const r=tar.rates[k]; const i=Math.floor(lonParts(r.from).min/30); sum[i]+=r.v; cnt[i]++; }
+    for(let k=0;k<48;k++) profile[k]=cnt[k]?sum[k]/cnt[k]:NaN;
+  } else {
+    for(let k=0;k<48;k++){ let v=null; for(let off=0;off<4&&v==null;off++){ const [y,m,d]=day(off); v=lookup(tar.rates,lonToUtc(y,m,d,k*30)); } profile[k]=v==null?NaN:v; }
+  }
+  const pm=[...profile].filter(isFinite); const fallback=pm.length?pm.reduce((a,b)=>a+b)/pm.length:30;
+  for(let k=0;k<48;k++) if(!isFinite(profile[k])) profile[k]=fallback;
+  const useHist = tar.isAgile || basis==="hist";
+  for(let i=0;i<n;i++){
+    if(useHist){ const v=lookup(tar.rates,s[i].t); if(v==null){ p[i]=profile[s[i].idx]; est++; } else p[i]=v; }
+    else p[i]=profile[s[i].idx];
+  }
+  const curStand=lookup(tar.standing,Date.now()) ?? (tar.standing.length?tar.standing[tar.standing.length-1].v:0);
+  const standingDay = (basis==="hist") ? (t=>lookup(tar.standing,t) ?? curStand) : (()=>curStand);
+  return {p,est,standingDay,profile,curStand};
+}
+
+/* ---------- Analysis ---------- */
+function prepare(){
+  const s=state.slots, n=s.length;
+  const evKwh=(+$("#evKw").value||2.8)/2;
+  // household baseline per half-hour of day, from non-EV slots
+  const buckets=Array.from({length:48},()=>[]);
+  for(const x of s) if(x.kwh<evKwh) buckets[x.idx].push(x.kwh);
+  const base=buckets.map(b=>{ if(!b.length) return .2; b.sort((a,c)=>a-c); return b[Math.floor(b.length/2)]; });
+  const ev=new Float64Array(n), home=new Float64Array(n);
+  for(let i=0;i<n;i++){ const x=s[i]; ev[i]= x.kwh>=evKwh ? Math.max(0,x.kwh-base[x.idx]) : 0; home[i]=x.kwh-ev[i]; }
+  // sessions run noon to noon so one night's charging stays together
+  const sessions=[]; let st=0;
+  for(let i=1;i<n;i++){ if((s[i-1].min<720 && s[i].min>=720) || s[i].t-s[i-1].t>12*3600e3){ sessions.push([st,i]); st=i; } }
+  sessions.push([st,n]);
+  return {ev,home,sessions,days:dayMap(s)};
+}
+
+function fill(order, amount, cap, out){
+  for(const [i,c] of order){ if(amount<=1e-9) break; const put=Math.min(c,amount); out[i]+=put; amount-=put; }
+  return amount;
+}
+
+function simulate(prep, price){
+  const s=state.slots, n=s.length, out=new Float64Array(n);
+  const flex=Math.min(.9,Math.max(0,(+$("#flexPct").value||0)/100));
+  const cap=(+$("#chargerKw").value||7)/2;
+  const pf=toMin($("#plugFrom").value), pt=toMin($("#plugTo").value);
+  const {ev,home,sessions}=prep;
+  for(const [a,b] of sessions){
+    let E=0,F=0; const evOrig=[];
+    for(let i=a;i<b;i++){ out[i]+=home[i]*(1-flex); F+=home[i]*flex; E+=ev[i]; }
+    if(E>0){
+      const cand=[];
+      for(let i=a;i<b;i++){ const inW=inWindow(s[i].min,pf,pt); if(inW||ev[i]>0) cand.push([i,Math.max(inW?cap:0,ev[i])]); }
+      cand.sort((x,y)=>price[x[0]]-price[y[0]]||x[0]-y[0]);
+      const left=fill(cand,E,cap,out);
+      if(left>1e-9) for(let i=a;i<b;i++) out[i]+=ev[i]/E*left;
+    }
+    if(F>0){
+      const cand=[]; for(let i=a;i<b;i++) cand.push([i,Math.max(1,home[i]*flex)]);
+      cand.sort((x,y)=>price[x[0]]-price[y[0]]||x[0]-y[0]);
+      const left=fill(cand,F,1,out);
+      if(left>1e-9) for(let i=a;i<b;i++) out[i]+=home[i]*flex/F*left;
+    }
+  }
+  return out;
+}
+
+function costOut(s, days, kwh, pr){
+  let energy=0, units=0; const months=new Map();
+  for(let i=0;i<s.length;i++){ const c=kwh[i]*pr.p[i]; energy+=c; units+=kwh[i]; const m=s[i].date.slice(0,7); months.set(m,(months.get(m)||0)+c); }
+  let stand=0;
+  for(const [date,t] of days){ const sc=pr.standingDay(t); stand+=sc; const m=date.slice(0,7); months.set(m,(months.get(m)||0)+sc); }
+  return {total:(energy+stand)/100, energy:energy/100, stand:stand/100, avg:units?energy/units:0, months:[...months].map(([m,v])=>[m,v/100])};
+}
+
+function customValid(c){
+  const num=v=>v!==""&&v!=null&&isFinite(parseFloat(v));
+  return !!(c.name&&num(c.standing)&&num(c.defaultRate)&&(c.fuel==="gas"||c.bands.every(b=>b.from&&b.to&&num(b.rate))));
+}
+function customAsTariffs(fuel){
+  return state.custom.filter(c=>(c.fuel||"elec")===fuel&&customValid(c)).map(c=>({...c,source:"custom",tags:["Entered by you"]}));
+}
+
+function calc(){
+  if(!state.slots.length) return;
+  const prep=prepare(); state.prep=prep;
+  const basis=$("#basis").value;
+  const actual=new Float64Array(state.slots.map(x=>x.kwh));
+  const all=[...state.tariffs, ...customAsTariffs("elec")];
+  const curId=currentId("elec");
+  const scale=365/prep.days.size;
+  state.results=all.filter(t=>canGet(t)||t.id===curId).map(t=>{
+    const pr=pricing(t,basis);
+    const used=costOut(state.slots,prep.days,actual,pr);
+    let sh=costOut(state.slots,prep.days,simulate(prep,pr.p),pr);
+    if(sh.total>used.total) sh=used;
+    return {t,pr,used,sh,yearUsed:used.total*scale,yearSh:sh.total*scale,estPct:pr.est/state.slots.length};
+  }).sort((a,b)=>a.yearSh-b.yearSh);
+  state.gasResults=[];
+  const g=state.gas;
+  if(g&&g.slots.length){
+    const gk=new Float64Array(g.slots.map(x=>x.kwh)), gscale=365/g.days.size;
+    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].map(t=>{
+      const pr=pricing(t,basis,g.slots);
+      const c=costOut(g.slots,g.days,gk,pr);
+      return {t,pr,c,year:c.total*gscale,estPct:pr.est/g.slots.length};
+    }).sort((a,b)=>a.year-b.year);
+  }
+  render();
+}
+
+/* ---------- Rendering ---------- */
+function currentId(fuel){
+  if(state.source==="octopus") return fuel==="gas"?state.currentGasProduct:state.currentProduct;
+  return $(fuel==="gas"?"#csvCurrentGas":"#csvCurrent").value;
+}
+function currentResult(){ const id=currentId("elec"); return state.results.find(r=>r.t.id===id) || null; }
+function currentGasResult(){ const id=currentId("gas"); return state.gasResults.find(r=>r.t.id===id) || null; }
+
+function render(){
+  const s=state.slots, prep=state.prep;
+  $("#summaryPanel").hidden=false;
+  const d0=new Date(s[0].t), d1=new Date(s[s.length-1].t);
+  const fmtD=d=>d.toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",timeZone:"Europe/London"});
+  $("#rangeLabel").textContent=`${fmtD(d0)} – ${fmtD(d1)} · ${prep.days.size} days`;
+  const total=s.reduce((a,x)=>a+x.kwh,0), evT=prep.ev.reduce((a,b)=>a+b,0);
+  const cur=currentResult();
+  // cheap window: slots where current tariff is within 1p of its cheapest, else 23:30-05:30
+  let cheap=new Array(48).fill(false);
+  if(cur && !cur.t.isAgile){ const pr=cur.pr.profile, mn=Math.min(...pr), mx=Math.max(...pr); if(mx-mn>1) for(let k=0;k<48;k++) cheap[k]=pr[k]<=mn+1; }
+  if(!cheap.some(Boolean)) for(let k=0;k<48;k++) cheap[k]=k>=47||k<11;
+  const cheapK=s.reduce((a,x)=>a+(cheap[x.idx]?x.kwh:0),0);
+  const firstCheap=cheap.findIndex((v,k)=>v&&!cheap[(k+47)%48]), lastCheap=cheap.findIndex((v,k)=>v&&!cheap[(k+1)%48]);
+  $("#bandLegend").textContent=`Cheap-rate window ${hhmm(firstCheap*30)}–${hhmm((lastCheap+1)*30)}${cur?" on "+cur.t.name:""}`;
+  $("#tiles").innerHTML=[
+    [total.toLocaleString("en-GB",{maximumFractionDigits:0})+" kWh","Used in this period"],
+    [(total/prep.days.size).toFixed(1)+" kWh","Average per day"],
+    [evT.toLocaleString("en-GB",{maximumFractionDigits:0})+" kWh",`EV charging detected (${Math.round(evT/total*100)}%)`],
+    [Math.round(cheapK/total*100)+"%",`Used ${hhmm(firstCheap*30)}–${hhmm((lastCheap+1)*30)}`],
+  ].map(([v,l])=>`<div class="tile"><span class="v">${v}</span><span class="l">${l}</span></div>`).join("");
+  drawProfile(cheap);
+
+  const best=state.results[0];
+  $("#resultsLabel").textContent=$("#basis").value==="today"?"Today's rates":"Rates at the time";
+  const rows=state.results.map(r=>{
+    const tags=[];
+    if(cur&&r===cur) tags.push('<span class="chip cur">Your tariff</span>');
+    if(r===best) tags.push('<span class="chip best">Cheapest if you shift</span>');
+    for(const g of r.t.tags||[]) tags.push(`<span class="chip">${esc(g)}</span>`);
+    if(r.t.exitFee>0) tags.push(`<span class="chip warn">£${(r.t.exitFee/100).toFixed(0)} exit fee</span>`);
+    if(r.t.isAgile) tags.push('<span class="chip">Actual half-hourly prices</span>');
+    if(r.estPct>.01) tags.push(`<span class="chip warn">${Math.round(r.estPct*100)}% of dates priced at today's rates</span>`);
+    let diff="–";
+    if(cur){ const dlt=r.yearSh-cur.yearSh; diff = r===cur?"—":`<span class="${dlt<0?"save":"cost"}">${dlt<0?"−":"+"}${gbp(Math.abs(dlt))}</span>`; }
+    const stand = r.t.source==="custom" ? +r.t.standing : r.pr.curStand;
+    return `<tr data-id="${esc(r.t.id)}" class="${state.selected===r.t.id?"sel":""}">
+      <td><div class="tname">${esc(r.t.name)}</div><div class="chips">${tags.join("")}</div></td>
+      <td class="n">${gbp(r.yearUsed)}<span class="sub">${gbp(r.used.total)} in period</span></td>
+      <td class="n"><b>${gbp(r.yearSh)}</b><span class="sub">${gbp(r.sh.total)} in period</span></td>
+      <td class="n">${diff}</td>
+      <td class="n">${r.sh.avg.toFixed(1)}p</td>
+      <td class="n">${(stand||0).toFixed(1)}p</td></tr>`;
+  });
+  $("#resultsBody").innerHTML=rows.join("")||'<tr><td colspan="6">No tariffs loaded.</td></tr>';
+  const nd=prep.days.size;
+  $("#scaleNote").textContent = nd<330 ? `Yearly figures are scaled up from ${nd} days. Winter usage is usually higher, so a full 12 months gives the most reliable answer.` : `Yearly figures are scaled from ${nd} days of your real usage.`;
+  if(!state.selected||!state.results.some(r=>r.t.id===state.selected)) state.selected=(cur&&best===cur&&state.results[1]?state.results[1]:best).t.id;
+  drawMonths();
+  renderGas();
+  renderBill();
+}
+
+function renderGas(){
+  const g=state.gas, rs=state.gasResults;
+  $("#gasPanel").hidden=!(g&&g.slots.length);
+  if($("#gasPanel").hidden) return;
+  const cur=currentGasResult(), best=rs[0];
+  const total=g.slots.reduce((a,x)=>a+x.kwh,0), rawTotal=g.raw.reduce((a,x)=>a+x.kwh,0);
+  $("#gasLabel").textContent=`${g.days.size} days`;
+  $("#gasTiles").innerHTML=[
+    [total.toLocaleString("en-GB",{maximumFractionDigits:0})+" kWh", g.unit==="m3"?`Used (${rawTotal.toFixed(0)} m³ converted)`:"Used in this period"],
+    [(total/g.days.size).toFixed(1)+" kWh","Average per day"],
+  ].map(([v,l])=>`<div class="tile"><span class="v">${v}</span><span class="l">${l}</span></div>`).join("");
+  $("#gasBody").innerHTML=rs.map(r=>{
+    const tags=[];
+    if(cur&&r===cur) tags.push('<span class="chip cur">Your tariff</span>');
+    if(r===best) tags.push('<span class="chip best">Cheapest</span>');
+    for(const t of r.t.tags||[]) tags.push(`<span class="chip">${esc(t)}</span>`);
+    if(r.t.exitFee>0) tags.push(`<span class="chip warn">£${(r.t.exitFee/100).toFixed(0)} exit fee</span>`);
+    if(r.estPct>.01) tags.push(`<span class="chip warn">${Math.round(r.estPct*100)}% of dates priced at today's rates</span>`);
+    let diff="–"; if(cur){ const d=r.year-cur.year; diff=r===cur?"—":`<span class="${d<0?"save":"cost"}">${d<0?"−":"+"}${gbp(Math.abs(d))}</span>`; }
+    const stand=r.t.source==="custom"?+r.t.standing:r.pr.curStand;
+    return `<tr><td><div class="tname">${esc(r.t.name)}</div><div class="chips">${tags.join("")}</div></td>
+      <td class="n"><b>${gbp(r.year)}</b><span class="sub">${gbp(r.c.total)} in period</span></td>
+      <td class="n">${diff}</td><td class="n">${r.c.avg.toFixed(2)}p</td><td class="n">${(stand||0).toFixed(1)}p</td></tr>`;
+  }).join("")||'<tr><td colspan="5">No gas tariffs found for this region.</td></tr>';
+  $("#gasScaleNote").textContent = g.days.size<330 ? `Yearly figures are scaled from ${g.days.size} days. Gas use is very seasonal, so a short summer period will understate a year's cost.` : `Yearly figures are scaled from ${g.days.size} days of your real usage.`;
+}
+
+function renderBill(){
+  const be=state.results[0], bg=state.gasResults[0], ce=currentResult(), cg=currentGasResult();
+  if(!be){ $("#billPanel").hidden=true; return; }
+  $("#billPanel").hidden=false;
+  const hasGas=!!(state.gas&&state.gas.slots.length);
+  $("#billLabel").textContent=hasGas?"Electricity + gas":"Electricity";
+  const tiles=[];
+  const curTotal = ce ? ce.yearUsed + (hasGas?(cg?cg.year:NaN):0) : NaN;
+  const bestTotal = be.yearSh + (hasGas&&bg?bg.year:0);
+  if(isFinite(curTotal)) tiles.push([gbp(curTotal),"Now: your tariffs, as you use energy today"]);
+  tiles.push([gbp(bestTotal),`Best: ${esc(be.t.name)}${hasGas&&bg?" + "+esc(bg.t.name)+" gas":""}, with shifting`]);
+  if(isFinite(curTotal)){ const d=curTotal-bestTotal; tiles.push([`<span class="${d>0?"save":""}">${d>0?gbp(d):"£0"}</span>`, d>0?"Possible saving per year":"You're already on the cheapest option"]); }
+  if(ce&&ce.yearUsed-ce.yearSh>1) tiles.push([gbp(ce.yearUsed-ce.yearSh),"Of that, from shifting more on your current tariff"]);
+  $("#billTiles").innerHTML=tiles.map(([v,l])=>`<div class="tile"><span class="v">${v}</span><span class="l">${l}</span></div>`).join("");
+  const missing=[]; if(!ce) missing.push("electricity"); if(hasGas&&!cg) missing.push("gas");
+  $("#billNote").textContent = missing.length ? `Choose your current ${missing.join(" and ")} tariff above to see your saving.` : "Electricity and gas tariffs are chosen separately, so you can mix them. Exit fees aren't included.";
+}
+
+function tipFor(container){
+  let tip=container.querySelector(".tip"); if(!tip){ tip=document.createElement("div"); tip.className="tip"; tip.hidden=true; container.appendChild(tip); }
+  return tip;
+}
+
+function drawProfile(cheap){
+  const s=state.slots, prep=state.prep, nd=prep.days.size;
+  const home=new Float64Array(48), ev=new Float64Array(48);
+  for(let i=0;i<s.length;i++){ home[s[i].idx]+=prep.home[i]; ev[s[i].idx]+=prep.ev[i]; }
+  for(let k=0;k<48;k++){ home[k]/=nd; ev[k]/=nd; }
+  const W=720,H=240,L=40,R=8,T=10,B=26, pw=W-L-R, ph=H-T-B;
+  const mx=Math.max(...home.map((h,k)=>h+ev[k]));
+  const step=mx>2?.5:mx>1?.25:mx>.4?.1:.05, top=Math.ceil(mx/step)*step||1;
+  const y=v=>T+ph-(v/top)*ph, bw=pw/48;
+  let g="";
+  for(let k=0;k<48;k++) if(cheap[k]) g+=`<rect x="${L+k*bw}" y="${T}" width="${bw}" height="${ph}" fill="var(--band)"/>`;
+  for(let v=0;v<=top+1e-9;v+=step) g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)" stroke-width="1"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">${+v.toFixed(2)}</text>`;
+  for(let k=0;k<48;k++){
+    const x=L+k*bw+1, w=bw-2, hh=y(0)-y(home[k]), eh=y(0)-y(ev[k]);
+    g+=`<rect x="${x}" y="${y(home[k])}" width="${w}" height="${Math.max(0,hh)}" fill="var(--home)" rx="1"/>`;
+    if(ev[k]>.005) g+=`<rect x="${x}" y="${y(home[k]+ev[k])}" width="${w}" height="${Math.max(0,eh-2)}" fill="var(--offpeak)" rx="2"/>`;
+  }
+  for(let h=0;h<=24;h+=3){ const x=L+h*2*bw; g+=`<text x="${x}" y="${H-8}" text-anchor="middle">${String(h%24).padStart(2,"0")}:00</text>`; }
+  g+=`<text x="4" y="${T+4}" text-anchor="start" style="font-size:10px">kWh</text>`;
+  g+=`<rect id="phit" x="${L}" y="${T}" width="${pw}" height="${ph}" fill="transparent"/>`;
+  const c=$("#profileChart"); c.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Average usage by half-hour">${g}</svg>`;
+  const tip=tipFor(c), svg=c.querySelector("svg");
+  svg.addEventListener("mousemove",e=>{
+    const r=svg.getBoundingClientRect(), sx=(e.clientX-r.left)*W/r.width; const k=Math.floor((sx-L)/bw);
+    if(k<0||k>47){ tip.hidden=true; return; }
+    tip.hidden=false; tip.innerHTML=`${hhmm(k*30)}–${hhmm(k*30+30)}<br>Household ${home[k].toFixed(2)} kWh<br>EV ${ev[k].toFixed(2)} kWh`;
+    tip.style.left=((L+(k+.5)*bw)/W*r.width)+"px"; tip.style.top=(y(home[k]+ev[k])/H*r.height)+"px";
+  });
+  svg.addEventListener("mouseleave",()=>tip.hidden=true);
+}
+
+function drawMonths(){
+  const sel=state.results.find(r=>r.t.id===state.selected), cur=currentResult();
+  if(!sel){ $("#detailPanel").hidden=true; return; }
+  $("#detailPanel").hidden=false;
+  const key=state.scen==="shifted"?"sh":"used";
+  const series=[{r:sel,color:"var(--offpeak)"}];
+  if(cur&&cur!==sel) series.unshift({r:cur,color:"var(--peak)"});
+  $("#detailTitle").textContent = cur&&cur!==sel ? `${sel.t.name} vs your tariff` : `${sel.t.name}, month by month`;
+  $("#monthLegend").innerHTML=series.map(x=>`<span><i style="background:${x.color}"></i>${esc(x.r.t.name)}${x.r===cur?" (yours)":""}</span>`).join("");
+  const months=sel[key].months.map(m=>m[0]);
+  const vals=series.map(x=>new Map(x.r[key].months));
+  const W=720,H=250,L=48,R=8,T=12,B=28,pw=W-L-R,ph=H-T-B;
+  const mx=Math.max(...vals.flatMap(v=>[...v.values()]),1);
+  const step=[10,20,25,50,100,200,250,500].find(s=>mx/s<=6)||1000, top=Math.ceil(mx/step)*step;
+  const y=v=>T+ph-(v/top)*ph, gw=pw/months.length, bw=Math.min(28,(gw-8)/series.length);
+  let g="";
+  for(let v=0;v<=top;v+=step) g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L-6}" y="${y(v)+4}" text-anchor="end">£${v}</text>`;
+  months.forEach((m,mi)=>{
+    const gx=L+mi*gw+(gw-bw*series.length-2*(series.length-1))/2;
+    series.forEach((sr,si)=>{ const v=vals[si].get(m)||0; const x=gx+si*(bw+2); g+=`<path d="M${x},${y(0)} V${y(v)+3} q0,-3 3,-3 h${bw-6} q3,0 3,3 V${y(0)} Z" fill="${sr.color}"/>`; });
+    const lab=new Date(m+"-01T12:00Z").toLocaleDateString("en-GB",{month:"short",year:months.length>12?"2-digit":undefined});
+    if(months.length<=14||mi%2===0) g+=`<text x="${L+(mi+.5)*gw}" y="${H-8}" text-anchor="middle">${lab}</text>`;
+  });
+  const c=$("#monthChart"); c.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly cost comparison">${g}</svg>`;
+  const tip=tipFor(c), svg=c.querySelector("svg");
+  svg.addEventListener("mousemove",e=>{
+    const r=svg.getBoundingClientRect(), sx=(e.clientX-r.left)*W/r.width, mi=Math.floor((sx-L)/gw);
+    if(mi<0||mi>=months.length){ tip.hidden=true; return; }
+    const m=months[mi]; tip.hidden=false;
+    tip.innerHTML=new Date(m+"-01T12:00Z").toLocaleDateString("en-GB",{month:"long",year:"numeric"})+"<br>"+series.map((sr,si)=>`${esc(sr.r.t.name)}: ${gbp(vals[si].get(m)||0,2)}`).join("<br>");
+    tip.style.left=((L+(mi+.5)*gw)/W*r.width)+"px"; tip.style.top=(y(Math.max(...vals.map(v=>v.get(m)||0)))/H*r.height)+"px";
+  });
+  svg.addEventListener("mouseleave",()=>tip.hidden=true);
+  for(const b of $("#scenTabs").children) b.setAttribute("aria-selected",b.dataset.scen===state.scen);
+}
+
+/* ---------- Custom tariffs ---------- */
+function renderCustom(){
+  const el=$("#customList");
+  if(!state.custom.length){ el.innerHTML='<p class="note" style="color:var(--ink-3)">No tariffs added yet.</p>'; return; }
+  el.innerHTML=state.custom.map((c,ci)=>`
+    <div class="custom" data-ci="${ci}">
+      <div class="grid">
+        <label class="f">Name <input id="cn${ci}" data-k="name" value="${esc(c.name)}" placeholder="e.g. EDF EV tariff"></label>
+        <label class="f">Fuel <select id="cf${ci}" data-k="fuel"><option value="elec"${c.fuel!=="gas"?" selected":""}>Electricity</option><option value="gas"${c.fuel==="gas"?" selected":""}>Gas</option></select></label>
+        <label class="f">Standing charge (p/day) <input id="cs${ci}" data-k="standing" type="number" step="0.01" value="${esc(c.standing)}"></label>
+        <label class="f">${c.fuel==="gas"?"Unit rate":"Rate at all other times"} (p/kWh) <input id="cr${ci}" data-k="defaultRate" type="number" step="0.01" value="${esc(c.defaultRate)}"></label>
+      </div>
+      ${customValid(c)?"":'<p class="note" style="color:var(--warn)">Fill in every field to include this tariff in the rankings.</p>'}
+      <div class="bands" ${c.fuel==="gas"?"hidden":""}>${c.bands.map((b,bi)=>`
+        <div class="band" data-bi="${bi}">
+          <label class="f">Cheap rate from <input id="bf${ci}_${bi}" data-b="from" type="time" value="${esc(b.from)}"></label>
+          <label class="f">until <input id="bt${ci}_${bi}" data-b="to" type="time" value="${esc(b.to)}"></label>
+          <label class="f">p/kWh <input id="br${ci}_${bi}" data-b="rate" type="number" step="0.01" value="${esc(b.rate)}"></label>
+          <button class="btn ghost small" data-act="delband">Remove</button>
+        </div>`).join("")}</div>
+      <div class="row">${c.fuel==="gas"?"":'<button class="btn ghost small" data-act="addband">Add a time band</button>'}<button class="btn ghost small" data-act="del" style="color:var(--bad);border-color:var(--bad)">Delete tariff</button></div>
+    </div>`).join("");
+}
+function saveCustom(){ store.set("custom",state.custom); }
+$("#customList").addEventListener("input",e=>{
+  const box=e.target.closest(".custom"); if(!box) return; const c=state.custom[+box.dataset.ci];
+  if(e.target.dataset.k) c[e.target.dataset.k]=e.target.value;
+  if(e.target.dataset.b){ c.bands[+e.target.closest(".band").dataset.bi][e.target.dataset.b]=e.target.value; }
+  saveCustom(); clearTimeout(window._ct);
+  window._ct=setTimeout(()=>{ const a=document.activeElement&&document.activeElement.id; renderCustom(); fillCurrentSelect(); calc(); if(a&&$("#"+a)) $("#"+a).focus(); },700);
+});
+$("#customList").addEventListener("click",e=>{
+  const act=e.target.dataset.act; if(!act) return; const box=e.target.closest(".custom"), ci=+box.dataset.ci, c=state.custom[ci];
+  if(act==="addband") c.bands.push({from:"00:00",to:"05:00",rate:""});
+  if(act==="delband") c.bands.splice(+e.target.closest(".band").dataset.bi,1);
+  if(act==="del") state.custom.splice(ci,1);
+  saveCustom(); renderCustom(); calc();
+});
+$("#addCustom").addEventListener("click",()=>{
+  state.custom.push({id:"custom-"+Date.now(),fuel:"elec",name:"",standing:"",defaultRate:"",bands:[{from:"00:00",to:"05:00",rate:""}]});
+  saveCustom(); renderCustom();
+});
+
+/* ---------- Wiring ---------- */
+function fillCurrentSelect(){
+  for(const [id,list,def] of [["#csvCurrent",[...state.tariffs,...customAsTariffs("elec")],"INTELLI-VAR-24-10-29"],["#csvCurrentGas",[...state.gasTariffs,...customAsTariffs("gas")],"VAR-22-11-01"]]){
+    const sel=$(id), prev=sel.value||def;
+    sel.innerHTML='<option value="">None</option>'+list.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
+    if(list.some(t=>t.id===prev)) sel.value=prev;
+  }
+}
+
+async function run(){
+  try{
+    await loadTariffs();
+    calc();
+    setStatus(`Compared ${state.results.length} electricity${state.gasResults.length?` and ${state.gasResults.length} gas`:""} tariffs against your usage.`);
+  }catch(e){ setStatus(e.message||String(e),true); }
+}
+
+document.querySelectorAll("#dataPanel .tabs button").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll("#dataPanel .tabs button").forEach(x=>x.setAttribute("aria-selected",x===b));
+  document.querySelectorAll("[data-pane]").forEach(p=>p.hidden=p.dataset.pane!==b.dataset.tab);
+}));
+$("#scenTabs").addEventListener("click",e=>{ if(e.target.dataset.scen){ state.scen=e.target.dataset.scen; drawMonths(); } });
+$("#resultsBody").addEventListener("click",e=>{ const tr=e.target.closest("tr[data-id]"); if(!tr) return; state.selected=tr.dataset.id; render(); });
+$("#fetchBtn").addEventListener("click",fetchOctopus);
+async function loadSample(){ state.currentProduct=null; state.currentGasProduct=null; setSlots(sampleData(),"sample"); setGas(sampleGas(),"kWh"); await run(); }
+$("#sampleBtn").addEventListener("click",loadSample);
+$("#gasFile").addEventListener("change",async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ const rows=parseCSV(await f.text()); if(!rows.length) throw new Error("No gas readings found in that file."); setGas(rows,rows.unit); setStatus(`Read ${rows.length.toLocaleString()} gas readings from ${f.name}.`); if(state.slots.length) await run(); }
+  catch(err){ setStatus(err.message,true); }
+});
+$("#csvCurrentGas").addEventListener("change",()=>calc());
+for(const id of ["gasUnit","gasCv"]) $("#"+id).addEventListener("change",()=>{ convertGas(); calc(); });
+for(const id of ["hasEv","hasHp","hasStorage","hasSolar","showAll"]) $("#"+id).addEventListener("change",()=>calc());
+$("#csvFile").addEventListener("change",async e=>{
+  const f=e.target.files[0]; if(!f) return;
+  try{ state.currentProduct=null; state.currentGasProduct=null; if(state.source==="sample") state.gas=null; setSlots(parseCSV(await f.text()),"csv"); setStatus(`Read ${state.slots.length.toLocaleString()} half-hours from ${f.name}.`); await run(); }
+  catch(err){ setStatus(err.message,true); }
+});
+$("#csvCurrent").addEventListener("change",()=>calc());
+$("#region").addEventListener("change",async()=>{ state.region=$("#region").value; if(state.slots.length) await run(); });
+for(const id of ["basis","evKw","chargerKw","plugFrom","plugTo","flexPct"]) $("#"+id).addEventListener("change",()=>calc());
+
+$("#region").innerHTML=Object.entries(REGIONS).map(([k,v])=>`<option value="${k}">${k} · ${v}</option>`).join("");
+$("#region").value=state.region;
+$("#nowLabel").textContent="Prices fetched live · "+new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"});
+const cred=store.get("cred"); if(cred){ $("#apiKey").value=cred.key; $("#acct").value=cred.acct; $("#remember").checked=true; }
+renderCustom();
+// open in a working state with sample data
+loadSample();
+</script>
+</body>
+</html>
