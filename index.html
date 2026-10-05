@@ -530,7 +530,7 @@ function sampleGas(){
 // What each tariff needs you to have, matched against the "I have" boxes.
 function requirement(code){
   const c=code.toUpperCase();
-  if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")) return "solar";
+  if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")||c.includes("OPTIMISE")) return "solar";
   if(/^(INTELLI|IOG|GO-)|EDF_EV|GOELEC|PODPOINT|NEXT_DRIVE|SAINSBURYS_EV|ENGAGE_EV/.test(c)) return "ev";
   if(/^COSY|HEAT_PUMP|PUMPED/.test(c)) return "hp";
   if(c.startsWith("SNUG")) return "storage";
@@ -555,7 +555,7 @@ function eligibility(code, name){
   if(/HEAT_PUMP|PUMPED/.test(c)) tags.push("Needs a heat pump");
   if(/EXCLUSIVE|LOYAL/.test(c)) tags.push("Check eligibility");
   if(/TRACKER/.test(c)) tags.push("Price changes daily or quarterly");
-  if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")) tags.push("Needs solar + battery");
+  if(c.startsWith("INTELLI-FLUX")||c.startsWith("FLUX")||c.includes("OPTIMISE")) tags.push("Needs solar + battery");
   else if(c.startsWith("INTELLI")||c.startsWith("IOG")) tags.push("Needs compatible EV or charger");
   else if(c.startsWith("GO-")) tags.push("Needs EV or home battery");
   if(c.startsWith("COSY")) tags.push("Needs a heat pump");
@@ -780,7 +780,7 @@ function calc(){
   if(g&&g.slots.length){
     const gk=new Float64Array(g.slots.map(x=>x.kwh)), gscale=365/g.days.size;
     const curG=currentId("gas");
-    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].filter(t=>(supplierOn(t)&&(showHid||!state.hidden.has(t.id)))||t.id===curG).map(t=>{
+    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].filter(t=>(canGet(t)&&(showHid||!state.hidden.has(t.id)))||t.id===curG).map(t=>{
       const pr=pricing(t,basis,g.slots);
       const c=costOut(g.slots,g.days,gk,pr);
       return {t,pr,c,year:c.total*gscale,estPct:pr.est/g.slots.length};
