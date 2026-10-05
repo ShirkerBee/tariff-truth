@@ -129,7 +129,7 @@ details summary{cursor:pointer;font-weight:600}
   </div>
 
   <div data-pane="octopus" class="grid" style="align-items:end">
-    <label class="f">API key <input id="apiKey" type="password" autocomplete="off" placeholder="sk_live_…"><small><a href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access" target="_blank" rel="noopener">Find it in your Octopus dashboard</a></small></label>
+    <label class="f">API key <span class="row" style="flex-wrap:nowrap;gap:6px"><input id="apiKey" type="password" autocomplete="off" placeholder="sk_live_…"><button type="button" class="btn ghost small" id="showKey" aria-pressed="false">Show</button></span><small><a href="https://octopus.energy/dashboard/new/accounts/personal-details/api-access" target="_blank" rel="noopener">Find it in your Octopus dashboard</a></small></label>
     <label class="f">Account number <input id="acct" placeholder="A-1234ABCD" autocomplete="off"><small>Starts with A-</small></label>
     <label class="f">Period
       <select id="period">
@@ -942,6 +942,11 @@ document.querySelectorAll("#dataPanel .tabs button").forEach(b=>b.addEventListen
 $("#scenTabs").addEventListener("click",e=>{ if(e.target.dataset.scen){ state.scen=e.target.dataset.scen; drawMonths(); } });
 $("#resultsBody").addEventListener("click",e=>{ const tr=e.target.closest("tr[data-id]"); if(!tr) return; state.selected=tr.dataset.id; render(); });
 $("#fetchBtn").addEventListener("click",fetchOctopus);
+$("#showKey").addEventListener("click",e=>{
+  e.preventDefault();
+  const k=$("#apiKey"), show=k.type==="password";
+  k.type=show?"text":"password"; e.target.textContent=show?"Hide":"Show"; e.target.setAttribute("aria-pressed",show);
+});
 async function loadSample(){ state.currentProduct=null; state.currentGasProduct=null; setSlots(sampleData(),"sample"); setGas(sampleGas(),"kWh"); await run(); }
 $("#sampleBtn").addEventListener("click",loadSample);
 $("#gasFile").addEventListener("change",async e=>{
