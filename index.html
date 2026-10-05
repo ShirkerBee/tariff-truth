@@ -88,6 +88,9 @@ td.n,th.n{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabula
 tbody tr{cursor:pointer}
 tbody tr:hover{background:var(--surface-2)}
 tbody tr.sel{background:var(--accent-soft)}
+tbody tr.hid td{opacity:.5}
+.hidebtn{border:0;background:none;color:var(--ink-3);font:500 12px var(--f-body);padding:0 0 0 8px;cursor:pointer;text-decoration:underline}
+.hidebtn:hover{color:var(--ink)}
 tr:last-child td{border-bottom:0}
 .tname{font-weight:600}
 .chips{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
@@ -189,6 +192,11 @@ details summary{cursor:pointer;font-weight:600}
   <div class="row" style="gap:18px">
     <span class="eyebrow">I have</span>
     <label class="check"><input type="checkbox" id="hasEv" checked> An EV</label>
+    <label class="check">charged with
+      <select id="charger" style="width:auto;padding:4px 8px">
+        <option value="other">another make</option><option value="zappi">myenergi zappi</option><option value="podpoint">Pod Point</option>
+        <option value="ohme">Ohme</option><option value="hypervolt">Hypervolt</option><option value="wallbox">Wallbox</option><option value="hive">Hive (British Gas)</option>
+      </select></label>
     <label class="check"><input type="checkbox" id="hasHp"> A heat pump</label>
     <label class="check"><input type="checkbox" id="hasStorage"> Storage heaters</label>
     <label class="check"><input type="checkbox" id="hasSolar"> Solar and a battery</label>
@@ -200,6 +208,7 @@ details summary{cursor:pointer;font-weight:600}
     <label class="check"><input type="checkbox" id="sup_edf" checked> EDF</label>
     <label class="check"><input type="checkbox" id="sup_eon" checked> E.ON Next &amp; Sainsbury's</label>
     <label class="check"><input type="checkbox" id="sup_custom" checked> Tariffs you've entered</label>
+    <label class="check"><input type="checkbox" id="showHidden"> <span id="showHiddenLabel">Show hidden tariffs</span></label>
   </div>
 </section>
 
@@ -333,6 +342,7 @@ const state = {
   currentGasProduct: null,
   gasTariffs: [],
   gasResults: [],
+  hidden: new Set(store.get("hidden")||[]),
 };
 state.custom.forEach(c=>{ if(!c.fuel) c.fuel="elec"; });
 
@@ -526,10 +536,13 @@ function requirement(code){
   if(c.startsWith("SNUG")) return "storage";
   return null;
 }
+// Tariffs that only work with one brand of charger.
+function chargerReq(code){ return /PODPOINT/i.test(code||"") ? "podpoint" : null; }
 function supplierOn(t){ const el=$("#sup_"+(t.source==="custom"?"custom":t.supplier)); return el?el.checked:true; }
 function canGet(t){
   if(!supplierOn(t)) return false;
   if(t.source==="custom"||$("#showAll").checked) return true;
+  const cr=chargerReq(t.code); if(cr&&$("#charger").value!==cr) return false;
   const r=requirement(t.code||""); if(!r) return true;
   return $({ev:"#hasEv",hp:"#hasHp",storage:"#hasStorage",solar:"#hasSolar"}[r]).checked;
 }
@@ -747,7 +760,8 @@ function calc(){
   const all=[...state.tariffs, ...customAsTariffs("elec")];
   const curId=currentId("elec");
   const scale=365/prep.days.size;
-  state.results=all.filter(t=>canGet(t)||t.id===curId).map(t=>{
+  const showHid=$("#showHidden").checked;
+  state.results=all.filter(t=>(canGet(t)&&(showHid||!state.hidden.has(t.id)))||t.id===curId).map(t=>{
     const pr=pricing(t,basis);
     if(t.applies==="car"){
       // Detected EV charging is billed at the car rate whenever it happens; everything else at the standard rate.
@@ -766,7 +780,7 @@ function calc(){
   if(g&&g.slots.length){
     const gk=new Float64Array(g.slots.map(x=>x.kwh)), gscale=365/g.days.size;
     const curG=currentId("gas");
-    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].filter(t=>supplierOn(t)||t.id===curG).map(t=>{
+    state.gasResults=[...state.gasTariffs,...customAsTariffs("gas")].filter(t=>(supplierOn(t)&&(showHid||!state.hidden.has(t.id)))||t.id===curG).map(t=>{
       const pr=pricing(t,basis,g.slots);
       const c=costOut(g.slots,g.days,gk,pr);
       return {t,pr,c,year:c.total*gscale,estPct:pr.est/g.slots.length};
@@ -821,8 +835,8 @@ function render(){
     let diff="–";
     if(cur){ const dlt=r.yearSh-cur.yearSh; diff = r===cur?"—":`<span class="${dlt<0?"save":"cost"}">${dlt<0?"−":"+"}${gbp(Math.abs(dlt))}</span>`; }
     const stand = r.t.source==="custom" ? +r.t.standing : r.pr.curStand;
-    return `<tr data-id="${esc(r.t.id)}" class="${state.selected===r.t.id?"sel":""}">
-      <td><div class="tname">${esc(r.t.name)}</div><div class="chips">${tags.join("")}</div></td>
+    return `<tr data-id="${esc(r.t.id)}" class="${state.selected===r.t.id?"sel":""}${state.hidden.has(r.t.id)?" hid":""}">
+      <td><div class="tname">${esc(r.t.name)}${hideBtn(r)}</div><div class="chips">${tags.join("")}</div></td>
       <td class="n">${gbp(r.yearUsed)}<span class="sub">${gbp(r.used.total)} in period</span></td>
       <td class="n"><b>${gbp(r.yearSh)}</b><span class="sub">${gbp(r.sh.total)} in period</span></td>
       <td class="n">${diff}</td>
@@ -834,6 +848,7 @@ function render(){
   $("#scaleNote").textContent = nd<330 ? `Yearly figures are scaled up from ${nd} days. Winter usage is usually higher, so a full 12 months gives the most reliable answer.` : `Yearly figures are scaled from ${nd} days of your real usage.`;
   if(!state.selected||!state.results.some(r=>r.t.id===state.selected)) state.selected=(cur&&best===cur&&state.results[1]?state.results[1]:best).t.id;
   drawMonths();
+  updateHiddenLabel();
   renderGas();
   renderBill();
 }
@@ -859,7 +874,7 @@ function renderGas(){
     if(r.estPct>.01) tags.push(`<span class="chip warn">${Math.round(r.estPct*100)}% of dates priced at today's rates</span>`);
     let diff="–"; if(cur){ const d=r.year-cur.year; diff=r===cur?"—":`<span class="${d<0?"save":"cost"}">${d<0?"−":"+"}${gbp(Math.abs(d))}</span>`; }
     const stand=r.t.source==="custom"?+r.t.standing:r.pr.curStand;
-    return `<tr><td><div class="tname">${esc(r.t.name)}</div><div class="chips">${tags.join("")}</div></td>
+    return `<tr data-id="${esc(r.t.id)}" class="${state.hidden.has(r.t.id)?"hid":""}"><td><div class="tname">${esc(r.t.name)}${hideBtn(r)}</div><div class="chips">${tags.join("")}</div></td>
       <td class="n"><b>${gbp(r.year)}</b><span class="sub">${gbp(r.c.total)} in period</span></td>
       <td class="n">${diff}</td><td class="n">${r.c.avg.toFixed(2)}p</td><td class="n">${(stand||0).toFixed(1)}p</td></tr>`;
   }).join("")||'<tr><td colspan="5">No gas tariffs found for this region.</td></tr>';
@@ -1015,8 +1030,9 @@ function fillCurrentSelect(){
     const sel=$(id), fuel=id==="#csvCurrentGas"?"gas":"elec";
     const saved=store.get("cmp_"+fuel), acc=state.source==="octopus"?(fuel==="gas"?state.currentGasProduct:state.currentProduct):null;
     sel.innerHTML='<option value="">None</option>'+list.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}${t.source==="custom"?" (entered by you)":""}</option>`).join("");
-    const pick=[saved,acc,sel.dataset.last,def].find(v=>v&&list.some(t=>t.id===v));
-    if(pick) sel.value=pick;
+    const ok=v=>v&&list.some(t=>t.id===v);
+    const pick=(ok(saved)&&saved) || [acc,sel.dataset.last,def].find(v=>ok(v)&&!state.hidden.has(v)) || "";
+    sel.value=pick;
     sel.dataset.last=sel.value;
   }
 }
@@ -1034,7 +1050,22 @@ document.querySelectorAll("#dataPanel .tabs button").forEach(b=>b.addEventListen
   document.querySelectorAll("[data-pane]").forEach(p=>p.hidden=p.dataset.pane!==b.dataset.tab);
 }));
 $("#scenTabs").addEventListener("click",e=>{ if(e.target.dataset.scen){ state.scen=e.target.dataset.scen; drawMonths(); } });
-$("#resultsBody").addEventListener("click",e=>{ const tr=e.target.closest("tr[data-id]"); if(!tr) return; state.selected=tr.dataset.id; render(); });
+function hideBtn(r){ const h=state.hidden.has(r.t.id); return `<button type="button" class="hidebtn" data-hide="${esc(r.t.id)}">${h?"Unhide":"Hide"}</button>`; }
+function toggleHidden(id){
+  if(state.hidden.has(id)) state.hidden.delete(id);
+  else {
+    state.hidden.add(id);
+    // hiding the comparison tariff clears it, so a live tariff can be picked instead
+    for(const [sid,fuel] of [["#csvCurrent","elec"],["#csvCurrentGas","gas"]]) if($(sid).value===id){ store.del("cmp_"+fuel); $(sid).dataset.last=""; }
+    fillCurrentSelect();
+  }
+  store.set("hidden",[...state.hidden]); if(state.selected===id) state.selected=null; calc();
+}
+function updateHiddenLabel(){ const n=state.hidden.size; $("#showHiddenLabel").textContent = n?`Show hidden tariffs (${n})`:"Show hidden tariffs"; }
+$("#resultsBody").addEventListener("click",e=>{
+  if(e.target.dataset.hide){ toggleHidden(e.target.dataset.hide); return; }
+  const tr=e.target.closest("tr[data-id]"); if(!tr) return; state.selected=tr.dataset.id; render(); });
+$("#gasBody").addEventListener("click",e=>{ if(e.target.dataset.hide) toggleHidden(e.target.dataset.hide); });
 $("#fetchBtn").addEventListener("click",fetchOctopus);
 $("#showKey").addEventListener("click",e=>{
   e.preventDefault();
@@ -1050,7 +1081,9 @@ $("#gasFile").addEventListener("change",async e=>{
 });
 $("#csvCurrentGas").addEventListener("change",e=>{ store.set("cmp_gas",e.target.value); e.target.dataset.last=e.target.value; calc(); });
 for(const id of ["gasUnit","gasCv"]) $("#"+id).addEventListener("change",()=>{ convertGas(); calc(); });
-for(const id of ["hasEv","hasHp","hasStorage","hasSolar","showAll","sup_octopus","sup_edf","sup_eon","sup_custom"]) $("#"+id).addEventListener("change",()=>calc());
+try{ const ch=store.get("charger"); if(ch) $("#charger").value=ch; }catch(e){}
+$("#charger").addEventListener("change",e=>{ store.set("charger",e.target.value); calc(); });
+for(const id of ["hasEv","hasHp","hasStorage","hasSolar","showAll","sup_octopus","sup_edf","sup_eon","sup_custom","showHidden"]) $("#"+id).addEventListener("change",()=>calc());
 function renderTemplates(){
   $("#templates").innerHTML=TEMPLATES.map((t,i)=>{ const have=state.custom.some(c=>c.name===t.name);
     return `<button type="button" class="btn ghost small" data-tpl="${i}" ${have?"disabled":""}>${esc(t.name)}${have?" ✓":""}</button>`; }).join("");
